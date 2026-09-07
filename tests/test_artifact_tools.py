@@ -11,7 +11,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path[:0] = [
+    str(ROOT / "tooling" / "runtime"),
+    str(ROOT / "skills" / "wewo-qa-case-designer" / "scripts"),
+    str(ROOT / "skills" / "wewo-qa-case-executor" / "scripts"),
+]
 
 from artifact_tools import (  # noqa: E402
     ValidationFailure,

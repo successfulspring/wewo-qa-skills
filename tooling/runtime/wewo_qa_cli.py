@@ -3,6 +3,15 @@ from __future__ import annotations
 """Single entry point for the self-contained Wewo QA runtime binary."""
 
 import sys
+from pathlib import Path
+
+
+if not getattr(sys, "frozen", False):
+    plugin_root = Path(__file__).resolve().parents[2]
+    sys.path[:0] = [
+        str(plugin_root / "skills" / "wewo-qa-case-designer" / "scripts"),
+        str(plugin_root / "skills" / "wewo-qa-case-executor" / "scripts"),
+    ]
 
 import prepare_execution_profile
 import render_case_docs

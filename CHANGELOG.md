@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Co-locate Designer and Executor schemas and source modules with their owning Skills.
+- Move shared runtime, build, and package-validation sources under `tooling/` without changing the installed command interface or generated artifacts.
+
 ## 0.1.0 - 2026-09-07
 
 - Publish one self-referencing marketplace for Codex and Claude Code.

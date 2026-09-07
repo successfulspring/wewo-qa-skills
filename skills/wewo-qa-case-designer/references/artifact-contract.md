@@ -39,7 +39,7 @@ If the user corrects a requirement after the XMind confirmation, update the walk
 
 ## Canonical contracts
 
-Use `<plugin-root>/schemas/test-points.schema.json` and `<plugin-root>/schemas/test-manifest.schema.json`. The validators additionally enforce:
+Use `references/schemas/test-points.schema.json` and `references/schemas/test-manifest.schema.json` from this Skill. The validators additionally enforce:
 
 - stable, unique source, decision, requirement-unit, test-point, target, and case IDs;
 - every non-root test-point node traces to a requirement unit and a source or decision;

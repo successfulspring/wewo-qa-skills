@@ -1,5 +1,7 @@
 # Execution policy
 
+The bundled runtime validates each run profile against `references/schemas/execution-profile.schema.json` from this Skill.
+
 ## Structured preflight
 
 The manifest declares what execution needs; the run profile records what is actually available. Before interacting with the product:

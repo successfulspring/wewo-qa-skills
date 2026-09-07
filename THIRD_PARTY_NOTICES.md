@@ -1,6 +1,6 @@
 # Third-party notices
 
-The bundled `wewo-qa` executables are produced with PyInstaller and include the Python runtime plus Python packages declared in `scripts/requirements-dev.txt` and their transitive dependencies.
+The bundled `wewo-qa` executables are produced with PyInstaller and include the Python runtime plus Python packages declared in `tooling/requirements-dev.txt` and their transitive dependencies.
 
 - Python is distributed under the Python Software Foundation License.
 - PyInstaller is distributed under GPL-2.0-or-later with a bootloader exception that permits distribution of bundled applications.

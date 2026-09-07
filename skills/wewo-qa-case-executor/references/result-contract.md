@@ -1,5 +1,7 @@
 # Execution result contract
 
+The bundled runtime validates each result set against `references/schemas/execution-results.schema.json` from this Skill.
+
 ## Output layout
 
 Create one immutable run directory beside the case artifacts:

@@ -14,6 +14,24 @@ PLUGIN_NAME = "wewo-qa-skills"
 DISPLAY_NAME = "Wewo QA Skills"
 SOURCE_URL = "https://github.com/successfulspring/wewo-qa-skills.git"
 EXPECTED_SKILLS = {"wewo-qa-case-designer", "wewo-qa-case-executor"}
+EXPECTED_SKILL_RESOURCES = {
+    "wewo-qa-case-designer": {
+        Path("references/schemas/test-manifest.schema.json"),
+        Path("references/schemas/test-points.schema.json"),
+        Path("scripts/render_case_docs.py"),
+        Path("scripts/render_test_points_xmind.py"),
+        Path("scripts/validate_test_manifest.py"),
+        Path("scripts/validate_test_points.py"),
+    },
+    "wewo-qa-case-executor": {
+        Path("references/schemas/execution-profile.schema.json"),
+        Path("references/schemas/execution-results.schema.json"),
+        Path("scripts/prepare_execution_profile.py"),
+        Path("scripts/render_execution_report.py"),
+        Path("scripts/validate_execution_profile.py"),
+        Path("scripts/validate_execution_results.py"),
+    },
+}
 MANIFESTS = (
     Path(".codex-plugin/plugin.json"),
     Path(".claude-plugin/plugin.json"),
@@ -116,7 +134,8 @@ def validate_skills(errors: list[str]) -> None:
     if actual != EXPECTED_SKILLS:
         errors.append(f"skills/: expected {sorted(EXPECTED_SKILLS)}, got {sorted(actual)}")
     for skill in sorted(EXPECTED_SKILLS):
-        path = skills_root / skill / "SKILL.md"
+        skill_root = skills_root / skill
+        path = skill_root / "SKILL.md"
         if not path.is_file():
             errors.append(f"missing {path.relative_to(ROOT)}")
             continue
@@ -125,9 +144,13 @@ def validate_skills(errors: list[str]) -> None:
             errors.append(f"{path.relative_to(ROOT)}: name must match directory")
         if not metadata.get("description"):
             errors.append(f"{path.relative_to(ROOT)}: description is required")
+        for relative in sorted(EXPECTED_SKILL_RESOURCES[skill]):
+            resource = skill_root / relative
+            if not resource.is_file():
+                errors.append(f"missing {resource.relative_to(ROOT)}")
 
     for path in skills_root.rglob("*"):
-        if not path.is_file():
+        if not path.is_file() or "__pycache__" in path.parts or path.suffix == ".pyc":
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
         if MACHINE_PATH.search(text):

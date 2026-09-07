@@ -9,6 +9,28 @@ The plugin is for tester-owned black-box work. It does not generate or execute u
 - `wewo-qa-case-designer` progressively co-reads supplied requirements with a tester, clarifies one coherent unit at a time through grouped questions with recommended lettered options, confirms an XMind test-point baseline, then generates smoke, regression, and full cases.
 - `wewo-qa-case-executor` validates the confirmed case baseline, collects missing environment conditions in one grouped preflight, dynamically selects available tools for the project's actual targets, executes automatable black-box cases, and preserves evidence.
 
+## Repository layout
+
+```text
+skills/
+|-- wewo-qa-case-designer/
+|   |-- SKILL.md
+|   |-- references/        # dialogue, design, artifact rules, and output schemas
+|   `-- scripts/           # test-point and case artifact source modules
+`-- wewo-qa-case-executor/
+    |-- SKILL.md
+    |-- references/        # execution policy, adapters, result rules, and run schemas
+    `-- scripts/           # preflight, validation, and report source modules
+tooling/
+|-- runtime/               # shared command dispatcher and validation core
+|-- build_runtime.py       # maintainer-only executable build
+`-- validate_package.py    # maintainer-only package checks
+bin/                       # self-contained executables used by installed Skills
+tests/                     # maintainer-only regression fixtures and tests
+```
+
+The Designer owns `test-manifest.schema.json` because the manifest is its output contract. The Executor consumes that contract through the shared runtime instead of maintaining a second copy.
+
 ## Install in Claude Code
 
 ```text
@@ -51,7 +73,7 @@ Start a new Codex session after installation. Select either Wewo QA Skill from t
 6. Provide the grouped missing conditions, such as a test address, build, account session, data, device, or permission.
 7. Review `runs/<run-id>/test-execution-report.md` and its evidence.
 
-The plugin includes self-contained artifact tooling. Testers do not need to install Python, Node.js, or Python packages. Current bundled host support is Windows x64, macOS arm64/x64, and Linux x64.
+The plugin includes self-contained artifact tooling. Testers do not need to install Python, Node.js, or Python packages. Skill-owned schemas and source modules live with the Designer or Executor that owns them; shared runtime and release tooling live under `tooling/`. Current bundled host support is Windows x64, macOS arm64/x64, and Linux x64.
 
 Automation tools and access are environment capabilities, not bundled credentials. If a selected target lacks an authorized browser, desktop, mobile, device, or other tester-visible control route, affected cases are reported as blocked or manual rather than fabricated as passed.
 
@@ -62,19 +84,19 @@ Private DingTalk links require an already authorized browser session or an appro
 Maintainers need Python 3.10 or later:
 
 ```text
-python -m pip install -r scripts/requirements-dev.txt
+python -m pip install -r tooling/requirements-dev.txt
 python -m unittest discover -s tests -v
-python scripts/validate_package.py
+python tooling/validate_package.py
 claude plugin validate . --strict
 ```
 
 Build one runtime for the current host:
 
 ```text
-python scripts/build_runtime.py --output-dir bin/<host-target>
+python tooling/build_runtime.py --output-dir bin/<host-target>
 ```
 
-Runtime behavior belongs only in the two canonical Skill trees. Do not create host-specific Skill mirrors.
+Workflow instructions belong only in the two canonical Skill trees. Shared deterministic implementation stays under `tooling/runtime/`; do not create host-specific Skill mirrors.
 
 ## License
 

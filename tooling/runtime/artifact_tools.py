@@ -16,11 +16,18 @@ if getattr(sys, "frozen", False):
     # PyInstaller expands bundled schemas under its private runtime directory.
     PLUGIN_ROOT = Path(getattr(sys, "_MEIPASS")).resolve()
 else:
-    PLUGIN_ROOT = Path(__file__).resolve().parent.parent
-TEST_POINTS_SCHEMA_PATH = PLUGIN_ROOT / "schemas" / "test-points.schema.json"
-MANIFEST_SCHEMA_PATH = PLUGIN_ROOT / "schemas" / "test-manifest.schema.json"
-RESULTS_SCHEMA_PATH = PLUGIN_ROOT / "schemas" / "execution-results.schema.json"
-EXECUTION_PROFILE_SCHEMA_PATH = PLUGIN_ROOT / "schemas" / "execution-profile.schema.json"
+    PLUGIN_ROOT = Path(__file__).resolve().parents[2]
+
+DESIGNER_SCHEMA_ROOT = (
+    PLUGIN_ROOT / "skills" / "wewo-qa-case-designer" / "references" / "schemas"
+)
+EXECUTOR_SCHEMA_ROOT = (
+    PLUGIN_ROOT / "skills" / "wewo-qa-case-executor" / "references" / "schemas"
+)
+TEST_POINTS_SCHEMA_PATH = DESIGNER_SCHEMA_ROOT / "test-points.schema.json"
+MANIFEST_SCHEMA_PATH = DESIGNER_SCHEMA_ROOT / "test-manifest.schema.json"
+RESULTS_SCHEMA_PATH = EXECUTOR_SCHEMA_ROOT / "execution-results.schema.json"
+EXECUTION_PROFILE_SCHEMA_PATH = EXECUTOR_SCHEMA_ROOT / "execution-profile.schema.json"
 
 
 class ValidationFailure(ValueError):
