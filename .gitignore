@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.render-check-*/
+.tmp-validation/
+.tmp-pyinstaller/
+.tmp-build-venv/
+dist/
+build/
+.claude/settings.local.json
+qa-artifacts/

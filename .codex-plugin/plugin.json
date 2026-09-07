@@ -1,0 +1,23 @@
+{
+  "name": "wewo-qa-skills",
+  "version": "0.1.0",
+  "description": "Wewo 测试人员专用的渐进式需求澄清、XMind测试点设计、黑盒用例生成与自动化执行插件",
+  "author": {
+    "name": "Wewo",
+    "url": "https://github.com/successfulspring"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Wewo QA Skills",
+    "shortDescription": "分段澄清需求，先确认XMind测试点，再生成并执行三套黑盒用例",
+    "longDescription": "从钉钉文档及其他需求资料中按片段陪同测试人员理解需求，以成组选择题澄清规则，先生成并确认XMind测试点基线，再生成冒烟、回归和全量用例，并按项目目标平台执行其中满足条件的自动化黑盒用例。",
+    "developerName": "Wewo",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://github.com/successfulspring/wewo-qa-skills",
+    "defaultPrompt": [
+      "根据这些需求资料，逐段陪我理解需求，每轮用一组带推荐选项的问题澄清，先生成XMind测试点，再生成三套黑盒测试用例。",
+      "执行这份回归用例中当前平台可自动化的部分，并输出证据化报告。"
+    ]
+  }
+}

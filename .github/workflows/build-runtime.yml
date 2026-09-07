@@ -1,0 +1,33 @@
+name: Build bundled runtimes
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            target: windows-x64
+          - runner: ubuntu-latest
+            target: linux-x64
+          - runner: macos-15
+            target: macos-arm64
+          - runner: macos-15-intel
+            target: macos-x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r scripts/requirements-dev.txt
+      - run: python scripts/build_runtime.py --output-dir bin/${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: bin/${{ matrix.target }}/wewo-qa*
+          if-no-files-found: error

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Wewo QA Case Executor"
+  short_description: "按项目目标平台执行可自动化黑盒用例并保存完整测试证据"
+  default_prompt: "Use $wewo-qa-case-executor to execute the selected QA suite on the requested project targets and produce an evidence-backed report."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,245 @@
+{
+  "schema_version": "1.2",
+  "generated_at": "2026-09-04T10:00:00+08:00",
+  "project": {
+    "name": "示例会员系统",
+    "artifact_id": "membership-login-v1",
+    "requirement": "会员登录体验升级",
+    "baseline": "需求评审确认版 1.0",
+    "targets": [
+      {
+        "id": "web-chrome",
+        "name": "桌面 Web Chrome",
+        "surface": "web",
+        "os": "windows",
+        "browser": "Chrome",
+        "browser_version": "current",
+        "device_mode": "not-applicable",
+        "in_scope": true
+      },
+      {
+        "id": "ios-app",
+        "name": "iOS 客户端",
+        "surface": "mobile-app",
+        "os": "ios",
+        "os_version": "18",
+        "device": "iPhone test device",
+        "device_mode": "real-device",
+        "in_scope": true
+      },
+      {
+        "id": "windows-client",
+        "name": "Windows 客户端",
+        "surface": "desktop-app",
+        "os": "windows",
+        "device_mode": "not-applicable",
+        "in_scope": false,
+        "notes": "本需求不覆盖原生桌面客户端"
+      }
+    ]
+  },
+  "sources": [
+    {
+      "id": "SRC-001",
+      "title": "会员登录需求",
+      "type": "dingtalk-doc",
+      "locator": "https://alidocs.dingtalk.com/example",
+      "version": "评审版 1.0",
+      "retrieved_at": "2026-09-04T09:00:00+08:00",
+      "authority": "authoritative"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-001",
+      "topic": "连续失败后的行为",
+      "resolution": "连续输错 5 次后锁定账号 15 分钟",
+      "status": "confirmed",
+      "rationale": "产品负责人选择 B 并确认"
+    }
+  ],
+  "test_points_baseline": {
+    "path": "test-points.json",
+    "sha256": "e23e0e3d95850605384388433ebccdfce8b837ebc0034089b002d7da698aae83",
+    "confirmed_at": "2026-09-04T09:58:00+08:00"
+  },
+  "runtime_requirements": [
+    {
+      "id": "RT-ENV-BASE-URL",
+      "name": "测试环境地址",
+      "kind": "environment",
+      "scope": "run",
+      "description": "可访问的会员系统测试环境登录地址",
+      "sensitive": false,
+      "collection": "user-input"
+    },
+    {
+      "id": "RT-ACCOUNT-MEMBER",
+      "name": "会员测试账号",
+      "kind": "account",
+      "scope": "case",
+      "description": "状态正常且可用于登录测试的会员账号标识，不包含密码",
+      "sensitive": false,
+      "collection": "user-input"
+    },
+    {
+      "id": "RT-CREDENTIAL-MEMBER",
+      "name": "会员登录凭据",
+      "kind": "credential",
+      "scope": "case",
+      "description": "通过已认证会话提供会员登录能力，不在测试产物中记录密码",
+      "sensitive": true,
+      "collection": "authenticated-session"
+    },
+    {
+      "id": "RT-BUILD-IOS",
+      "name": "iOS 测试构建",
+      "kind": "build",
+      "scope": "target",
+      "description": "待验证的 iOS 应用构建已安装",
+      "target_ids": ["ios-app"],
+      "sensitive": false,
+      "collection": "user-input"
+    },
+    {
+      "id": "RT-DEVICE-IOS",
+      "name": "授权的 iOS 测试设备",
+      "kind": "device",
+      "scope": "target",
+      "description": "可由当前执行工具控制的授权 iOS 真机",
+      "target_ids": ["ios-app"],
+      "sensitive": false,
+      "collection": "capability-check"
+    },
+    {
+      "id": "RT-DATA-LOCKOUT-RESET",
+      "name": "锁定状态重置能力",
+      "kind": "test-data",
+      "scope": "case",
+      "description": "测试账号可在用例执行后恢复为未锁定状态",
+      "sensitive": false,
+      "collection": "user-input"
+    }
+  ],
+  "cases": [
+    {
+      "id": "QA-LOGIN-001",
+      "title": "有效账号完成登录",
+      "source_refs": ["SRC-001#正常登录流程"],
+      "test_point_refs": ["TP-LOGIN-SUCCESS"],
+      "priority": "P0",
+      "risk": "high",
+      "suite_membership": ["smoke", "regression", "full"],
+      "applicable_targets": ["web-chrome", "ios-app"],
+      "runtime_requirement_refs": ["RT-ENV-BASE-URL", "RT-ACCOUNT-MEMBER", "RT-CREDENTIAL-MEMBER"],
+      "preconditions": ["测试环境可用", "存在状态正常的会员测试账号"],
+      "test_data": ["引用测试数据集 member-active，不记录密码"],
+      "steps": [
+        {
+          "action": "打开登录入口并输入有效会员账号和密码后提交",
+          "expected": "登录页结束加载并进入会员首页，页面显示该账号的会员昵称"
+        }
+      ],
+      "automation": [
+        {
+          "target_id": "web-chrome",
+          "feasibility": "automatable",
+          "candidate_route": "browser-ui",
+          "runtime_requirement_refs": [],
+          "required_evidence": ["screenshot", "accessibility-snapshot"]
+        },
+        {
+          "target_id": "ios-app",
+          "feasibility": "conditional",
+          "candidate_route": "mobile-ui",
+          "condition": "已连接授权的 iOS 真机并安装指定构建",
+          "runtime_requirement_refs": ["RT-BUILD-IOS", "RT-DEVICE-IOS"],
+          "required_evidence": ["screenshot"]
+        }
+      ],
+      "safety": {
+        "impact": "reversible",
+        "requires_confirmation": false,
+        "cleanup_steps": ["退出登录并清理本次会话"]
+      },
+      "tags": ["login", "critical-path"]
+    },
+    {
+      "id": "QA-LOGIN-002",
+      "title": "账号连续失败五次后被临时锁定",
+      "source_refs": ["DEC-001"],
+      "test_point_refs": ["TP-LOGIN-LOCKOUT"],
+      "priority": "P1",
+      "risk": "high",
+      "suite_membership": ["regression", "full"],
+      "applicable_targets": ["web-chrome", "ios-app"],
+      "runtime_requirement_refs": ["RT-ENV-BASE-URL", "RT-ACCOUNT-MEMBER", "RT-CREDENTIAL-MEMBER", "RT-DATA-LOCKOUT-RESET"],
+      "preconditions": ["存在专用且未锁定的会员测试账号"],
+      "test_data": ["引用可重置的 lockout-test 测试账号"],
+      "steps": [
+        {
+          "action": "连续五次输入错误密码并提交",
+          "expected": "第五次失败后显示账号已锁定 15 分钟，继续提交不会进入会员首页"
+        }
+      ],
+      "automation": [
+        {
+          "target_id": "web-chrome",
+          "feasibility": "conditional",
+          "candidate_route": "browser-ui",
+          "condition": "测试账号支持自动重置锁定状态",
+          "runtime_requirement_refs": [],
+          "required_evidence": ["screenshot"]
+        },
+        {
+          "target_id": "ios-app",
+          "feasibility": "manual",
+          "candidate_route": "none",
+          "reason": "当前项目没有授权的 iOS 自动化设备",
+          "runtime_requirement_refs": ["RT-BUILD-IOS", "RT-DEVICE-IOS"],
+          "required_evidence": []
+        }
+      ],
+      "safety": {
+        "impact": "reversible",
+        "requires_confirmation": false,
+        "cleanup_steps": ["通过测试数据工具重置账号锁定状态"]
+      },
+      "tags": ["login", "negative"]
+    },
+    {
+      "id": "QA-LOGIN-003",
+      "title": "密码为空时阻止提交",
+      "source_refs": ["SRC-001#输入校验"],
+      "test_point_refs": ["TP-LOGIN-PASSWORD-REQUIRED"],
+      "priority": "P2",
+      "risk": "medium",
+      "suite_membership": ["full"],
+      "applicable_targets": ["web-chrome"],
+      "runtime_requirement_refs": ["RT-ENV-BASE-URL"],
+      "preconditions": ["登录页可访问"],
+      "test_data": ["有效会员账号，密码留空"],
+      "steps": [
+        {
+          "action": "输入会员账号、保持密码为空并尝试提交",
+          "expected": "密码输入框显示必填提示，页面停留在登录页且不会建立登录会话"
+        }
+      ],
+      "automation": [
+        {
+          "target_id": "web-chrome",
+          "feasibility": "automatable",
+          "candidate_route": "browser-ui",
+          "runtime_requirement_refs": [],
+          "required_evidence": ["accessibility-snapshot"]
+        }
+      ],
+      "safety": {
+        "impact": "none",
+        "requires_confirmation": false,
+        "cleanup_steps": []
+      },
+      "tags": ["login", "validation"]
+    }
+  ]
+}

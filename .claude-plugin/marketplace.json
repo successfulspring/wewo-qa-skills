@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "wewo-qa-skills",
+  "description": "Wewo QA skills for tester-owned case design and automated black-box execution.",
+  "owner": {
+    "name": "Wewo",
+    "url": "https://github.com/successfulspring"
+  },
+  "plugins": [
+    {
+      "name": "wewo-qa-skills",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/successfulspring/wewo-qa-skills.git"
+      },
+      "description": "Progressively clarify requirements, confirm an XMind test-point baseline, generate smoke/regression/full cases, and execute automatable black-box cases.",
+      "homepage": "https://github.com/successfulspring/wewo-qa-skills"
+    }
+  ]
+}

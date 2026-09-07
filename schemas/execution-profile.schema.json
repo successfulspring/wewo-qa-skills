@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Wewo QA Execution Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "manifest_path", "manifest_sha256", "suite", "targets", "collected_at", "bindings"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "manifest_path": {"type": "string", "minLength": 1},
+    "manifest_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "suite": {"enum": ["smoke", "regression", "full"]},
+    "targets": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "collected_at": {"type": "string", "format": "date-time"},
+    "bindings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/binding"}
+    },
+    "notes": {"type": "string"}
+  },
+  "$defs": {
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirement_id", "status"],
+      "properties": {
+        "requirement_id": {"type": "string", "pattern": "^RT-[A-Z0-9]+(?:-[A-Z0-9]+)*$"},
+        "status": {"enum": ["resolved", "missing", "unavailable"]},
+        "source": {"enum": ["user-input", "environment-discovery", "secret-reference", "authenticated-session", "capability-check"]},
+        "value": {"type": "string", "minLength": 1},
+        "secret_ref": {"type": "string", "minLength": 1},
+        "session_ref": {"type": "string", "minLength": 1},
+        "notes": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

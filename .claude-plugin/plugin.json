@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "wewo-qa-skills",
+  "displayName": "Wewo QA Skills",
+  "version": "0.1.0",
+  "description": "Tester-facing requirement clarification, XMind test-point design, black-box case generation, and automated case execution for Wewo QA.",
+  "author": {
+    "name": "Wewo",
+    "url": "https://github.com/successfulspring"
+  },
+  "skills": "./skills/"
+}

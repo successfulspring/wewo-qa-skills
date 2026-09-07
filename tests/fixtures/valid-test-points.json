@@ -1,0 +1,132 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-09-04T09:55:00+08:00",
+  "project": {
+    "name": "示例会员系统",
+    "artifact_id": "membership-login-v1",
+    "requirement": "会员登录体验升级",
+    "baseline": "需求评审确认版 1.0",
+    "targets": [
+      {
+        "id": "web-chrome",
+        "name": "桌面 Web Chrome",
+        "surface": "web",
+        "os": "windows",
+        "browser": "Chrome",
+        "browser_version": "current",
+        "device_mode": "not-applicable",
+        "in_scope": true
+      },
+      {
+        "id": "ios-app",
+        "name": "iOS 客户端",
+        "surface": "mobile-app",
+        "os": "ios",
+        "os_version": "18",
+        "device": "iPhone test device",
+        "device_mode": "real-device",
+        "in_scope": true
+      },
+      {
+        "id": "windows-client",
+        "name": "Windows 客户端",
+        "surface": "desktop-app",
+        "os": "windows",
+        "device_mode": "not-applicable",
+        "in_scope": false,
+        "notes": "本需求不覆盖原生桌面客户端"
+      }
+    ]
+  },
+  "sources": [
+    {
+      "id": "SRC-001",
+      "title": "会员登录需求",
+      "type": "dingtalk-doc",
+      "locator": "https://alidocs.dingtalk.com/example",
+      "version": "评审版 1.0",
+      "retrieved_at": "2026-09-04T09:00:00+08:00",
+      "authority": "authoritative"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-001",
+      "unit_id": "RU-002",
+      "question_id": "Q-RU002-01",
+      "selected_options": ["B"],
+      "topic": "连续失败后的行为",
+      "resolution": "连续输错 5 次后锁定账号 15 分钟",
+      "status": "confirmed",
+      "rationale": "产品负责人选择 B 并确认"
+    }
+  ],
+  "requirement_units": [
+    {
+      "id": "RU-001",
+      "title": "登录主流程与输入校验",
+      "source_refs": ["SRC-001#正常登录流程", "SRC-001#输入校验"],
+      "status": "confirmed",
+      "understanding": "有效会员可以登录；缺少必填凭据时页面阻止提交。",
+      "confirmed_facts": ["有效账号登录后进入会员首页", "密码为必填项"]
+    },
+    {
+      "id": "RU-002",
+      "title": "连续登录失败保护",
+      "source_refs": ["SRC-001#安全策略"],
+      "status": "confirmed",
+      "understanding": "连续失败达到阈值后临时锁定账号。",
+      "confirmed_facts": ["连续五次失败后锁定十五分钟"]
+    }
+  ],
+  "tree": {
+    "id": "TP-ROOT",
+    "title": "会员登录体验升级测试点",
+    "kind": "root",
+    "status": "confirmed",
+    "requirement_unit_refs": [],
+    "trace_refs": [],
+    "children": [
+      {
+        "id": "TP-LOGIN",
+        "title": "会员登录",
+        "kind": "module",
+        "status": "confirmed",
+        "requirement_unit_refs": ["RU-001", "RU-002"],
+        "trace_refs": ["SRC-001"],
+        "children": [
+          {
+            "id": "TP-LOGIN-SUCCESS",
+            "title": "有效账号登录后显示会员首页和昵称",
+            "kind": "flow",
+            "status": "confirmed",
+            "requirement_unit_refs": ["RU-001"],
+            "trace_refs": ["SRC-001#正常登录流程"],
+            "automation_candidate": true,
+            "children": []
+          },
+          {
+            "id": "TP-LOGIN-LOCKOUT",
+            "title": "连续失败五次后锁定账号十五分钟",
+            "kind": "state",
+            "status": "confirmed",
+            "requirement_unit_refs": ["RU-002"],
+            "trace_refs": ["DEC-001"],
+            "automation_candidate": true,
+            "children": []
+          },
+          {
+            "id": "TP-LOGIN-PASSWORD-REQUIRED",
+            "title": "密码为空时阻止提交并显示必填提示",
+            "kind": "negative",
+            "status": "confirmed",
+            "requirement_unit_refs": ["RU-001"],
+            "trace_refs": ["SRC-001#输入校验"],
+            "automation_candidate": true,
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+}
