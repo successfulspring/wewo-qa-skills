@@ -37,6 +37,8 @@ codex plugin marketplace add successfulspring/wewo-qa-skills
 codex plugin add wewo-qa-skills@wewo-qa-skills
 ```
 
+If an older `codex` executable does not provide `plugin add`, add the marketplace with the first command and install `wewo-qa-skills` from the Codex desktop plugin browser. Updating Codex CLI is preferred over editing configuration files manually.
+
 Start a new Codex session after installation. Select either Wewo QA Skill from the Skill picker or describe the QA task directly.
 
 ## Tester workflow
