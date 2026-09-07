@@ -4,6 +4,7 @@ __pycache__/
 .tmp-validation/
 .tmp-pyinstaller/
 .tmp-build-venv/
+.tmp-runtime-artifacts/
 dist/
 build/
 .claude/settings.local.json
