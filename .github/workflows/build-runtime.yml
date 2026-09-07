@@ -19,14 +19,15 @@ jobs:
             target: macos-x64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: scripts/requirements-dev.txt
       - run: python -m pip install -r scripts/requirements-dev.txt
       - run: python scripts/build_runtime.py --output-dir bin/${{ matrix.target }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.target }}
           path: bin/${{ matrix.target }}/wewo-qa*
