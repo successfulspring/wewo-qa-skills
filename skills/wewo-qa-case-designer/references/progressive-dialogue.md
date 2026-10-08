@@ -76,16 +76,10 @@ At the end of a module, show its accumulated test-point branch and a compact sta
 
 The user may approve the whole module, correct individual items, or provide new information. Module confirmation is not the same as final XMind confirmation.
 
-## Walkthrough ledger
+## Persistent understanding
 
-Maintain `requirement-walkthrough.md` so another session can continue without replaying the whole conversation. For each unit record:
+Maintain unit status/understanding in `test-points.json`; preserve decisions with question ID, selected options/free-text resolution, rationale and impacted rule/point IDs in the business model. Keep accepted assumptions and remaining material questions visible. Do not require a separate Markdown walkthrough.
 
-- unit ID, title, source anchors, and status;
-- the plain-language understanding shown to the user;
-- each question batch exactly as presented, including choices and recommendation basis;
-- the user's selected options or free-form correction;
-- resulting decision IDs and assumptions;
-- test-point IDs added, changed, removed, or reopened;
-- module confirmation and timestamp when available.
+The whole-business draft establishes dependencies before these rounds. A changed answer may reopen a rule in another module; show the downstream branch changes. Do not ask for an answer to a rule already explicit in a readable source. A module checkpoint is a correction opportunity, while the final XMind baseline needs explicit confirmation.
 
-This ledger records the collaboration but does not replace the authoritative source or `test-points.json`.
+When a visual branch will help review, render the current known tree using `render-test-points-xmind --draft`; never mark the context confirmed just to render a draft. Keep unanswered material facts in `open_questions` and omit speculative final expectations.

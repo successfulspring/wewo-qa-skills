@@ -1,46 +1,30 @@
 ---
 name: wewo-qa-case-executor
-description: Execute tester-facing black-box cases marked automatable for selected project targets, using available UI automation tools, deterministic oracles, and preserved evidence. Use for smoke, regression, or full QA execution; do not use to design cases, run unit/API/component/contract tests, generate test code, modify product code, or perform manual-only cases.
+description: Execute reviewed tester-facing Excel black-box cases marked automatable for selected project targets, verify every planned assertion using available UI tools, and produce an Excel report with linked evidence. Use for smoke, regression or full QA execution; not case design, developer tests, automation-code generation or product repair.
 ---
 
 # Wewo QA Case Executor
 
-Execute only the authorized tester-owned black-box scope in a validated Wewo QA manifest. Select tools dynamically from the project target and currently available capabilities.
+Execute the confirmed tester-owned cases against the actual test environment. Primary execution output is `test-execution-report.xlsx` with preserved evidence.
 
-## Non-negotiable boundary
+## Scope and verdicts
 
-- Execute product behavior through tester-visible interfaces. Never turn a case into a unit, API, component, contract, or code-level integration test.
-- Do not generate or commit Playwright/Appium/unit/API test code in v1. Use available UI or computer-control tools directly.
-- Do not modify product code, configuration, fixtures, accounts, or environments unless the user separately authorizes that change.
-- Manual-only cases remain `not-run`; never simulate a human judgment or report it as passed.
-- A completed interaction is not a pass. A pass requires a deterministic oracle, recorded assertions, and evidence.
+- Use tester-visible interfaces on the project's selected targets. Exclude unit, API, component, contract and developer self-tests; do not generate test code or modify the product.
+- Test the implemented product running in the identified test environment. Product source-code access is not required. Resolve the Designer's planned routes, data criteria and runtime requirements against the actual interface; keep the requirement-derived expected results frozen. Design feasibility is not proof of runtime readiness.
+- Use available authorized UI/control capabilities. Manual cases remain `not-run`; unavailable tools or ambiguous oracles block the affected pair.
+- An action completing does not establish a pass. Every planned assertion applicable to the target must be evaluated against its frozen oracle with linked evidence.
+- Do not rewrite the oracle to match observations or repair test data/environment without authorization. Keep secrets outside artifacts.
 
 ## Workflow
 
-1. Resolve the bundled runtime command using [runtime tool](references/runtime-tool.md). Locate `test-manifest.json` and validate it with the runtime. This also verifies the adjacent confirmed `test-points.json` digest and case-to-leaf coverage. Stop on an invalid or stale baseline.
-2. Resolve the requested suite (`smoke`, `regression`, or `full`) and requested target IDs. Never infer additional platforms. If omitted and more than one in-scope target exists, ask which targets to execute.
-3. Build the execution matrix as selected suite × selected applicable targets. Aggregate and deduplicate the structured runtime requirements for every non-manual pair. A pair needs the union of its case-level and target-automation references; requirements attached only to manual pairs are not prerequisites for this automated run.
-4. Generate the deduplicated `execution-profile.json` template with the bundled runtime, then perform the preflight in [execution policy](references/execution-policy.md): check what the current environment, tools, sessions, and user input already satisfy, and ask once for all remaining user-resolvable inputs, grouped by environment/build, account/authentication, test data, device/capability, and permission. Do not collect missing inputs one question at a time.
-5. Validate the execution profile. Do not put secret values in the profile or conversation: use an approved secret reference or ask the tester to complete login, then record only an authenticated-session reference. Missing or declined inputs block only the affected pairs; continue with every ready pair.
-6. Read only the selected target guidance in [platform adapters](references/platform-adapters.md). Resolve each candidate route to the best currently available authorized UI tool; do not install or connect a new tool without the authority required by the environment.
-7. Include every selected case-target pair in the result:
-   - `automatable`: execute when preconditions are satisfied.
-   - `conditional`: execute when every referenced condition is resolved and the route is available; otherwise mark `blocked`.
-   - `manual`: mark `not-run` with reason `manual-only`.
-8. Isolate test state where practical, perform the documented cleanup, and never reuse a failed case's dirty state as proof for another case.
-9. Record assertions and evidence during execution. Assign verdicts using [result contract](references/result-contract.md); do not rewrite expected outcomes after observing the product.
-10. Validate `execution-results.json`, render `test-execution-report.md`, and disclose incomplete coverage, blockers, flaky behavior, and environment limitations.
+1. Resolve the executable through [runtime tool](references/runtime-tool.md). Validate `test-manifest.json` and `test-cases.xlsx`; this also verifies context, confirmed point hashes, coverage and case review. If Excel differs, route its edits to Designer for import and review. Stop dependent execution until it matches; do not run the old JSON or discard the edits.
+2. Resolve requested suite and actual target IDs. For multiple possible targets, clarify the selected scope. Build selected suite × applicable selected targets; do not infer extra platforms.
+3. Aggregate deduplicated runtime requirements for non-manual pairs and generate `execution-profile.json`. Follow [execution policy](references/execution-policy.md): inspect current tools/sessions first, then ask once for remaining user-resolvable inputs. Validate and freeze the profile, manifest and workbook hashes before product interaction.
+4. Use only the relevant [platform adapters](references/platform-adapters.md). Resolve each feasible route to an available authorized tool. Automatable pairs execute when ready; conditional pairs execute only after conditions are resolved; manual pairs remain `not-run`. Continue independent ready pairs when others are blocked.
+5. Execute the case steps using the documented state/data. Wait for each frozen check timing and inspect the specified subject/location. Preserve original UI tool output and required images before cleanup using [observation evidence](references/observation-evidence.md). Bind extracted values to the original output by JSON Pointer; compare using the frozen method. Evidence-review checks require per-attempt objective reasons. Isolate/reset state without treating a previous case's dirty state as setup evidence.
+6. Record a result for every selected pair. Retain the planned assertion IDs and expected values; record actual observation, passed/failed/not-evaluated status and evidence references for each. When interrupted after starting, retain every planned assertion and give reasons for those not evaluated. Missing checks cannot yield passed.
+7. Use `judge-execution-results` to derive actual text and verdicts from preserved observations into a separate reviewed result file, then validate it and render the Excel report using [result contract](references/result-contract.md). The command compares evidence; it performs no product actions and cannot fill missing observations. Report failures, incomplete assertion coverage, blockers, manual work and environment limits. A zero-eligible-case run cannot have a passing automation gate.
 
-## Completion gate
+Completion means every selected pair has a truthful validated result and the report has been generated; it does not imply that blocked/manual coverage was executed. A passed pair requires all applicable planned assertions passed, matching original oracles and existing linked evidence. A valid artifact proves declared evidence consistency; it does not prove exhaustive business coverage or the authenticity of observations without actual tool execution.
 
-Do not claim the run is complete unless:
-
-- every selected case-target pair has exactly one result;
-- `execution-profile.json` exactly covers the structured requirements of the selected automatic scope and is bound to the same manifest, suite, and targets;
-- every executed pair has all of its runtime requirements resolved, while missing conditions are named on affected blocked results;
-- every passed result contains at least one passing assertion and evidence;
-- failed, blocked, flaky, and not-run results include actionable reasons;
-- secrets and unnecessary personal or production data are absent from artifacts;
-- result validation and report rendering succeed.
-
-Resolve the plugin root two directories above this skill when locating its bundled runtime.
+Resolve the plugin root two directories above this skill for its bundled runtime. A tester must not need to install language runtimes or dependencies.

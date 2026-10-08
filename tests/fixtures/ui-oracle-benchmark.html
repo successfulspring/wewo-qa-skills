@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh"><meta charset="utf-8"><title>QA observation benchmark</title>
+<style>body{font:18px sans-serif;max-width:760px;margin:36px auto}button,select{font:inherit;padding:8px;margin:8px}output{font-weight:bold}section{padding:16px;border:1px solid #ddd}</style>
+<h1>测试夹具：转运判定</h1><p>维护用合成页面。每次刷新恢复初始数据。</p>
+<label for="mode">夹具模式</label><select id="mode"><option value="correct">正常</option><option value="quantity">数量错误</option><option value="binding">绑定错误</option></select>
+<section><p>订单：<output id="subject">SYNTHETIC-O1</output></p>
+<p>状态：<output id="state">Ready</output></p>
+<p>来源保留数量：<output id="reserved">8</output></p>
+<p>目的在途数量：<output id="incoming">10</output></p>
+<p>包裹所属订单：<output id="binding">SYNTHETIC-O1</output></p>
+<button id="transfer">转运 2 个包裹</button><button id="reset">恢复数据</button></section>
+<script>
+const byId = id => document.getElementById(id);
+byId('transfer').onclick = () => {
+  if (byId('state').textContent !== 'Ready') return;
+  byId('state').textContent = 'InTransit';
+  byId('incoming').textContent = byId('mode').value === 'quantity' ? '13' : '12';
+  if (byId('mode').value === 'binding') byId('binding').textContent = 'SYNTHETIC-O2';
+};
+byId('reset').onclick = () => {
+  byId('state').textContent='Ready'; byId('incoming').textContent='10';
+  byId('reserved').textContent='8'; byId('binding').textContent='SYNTHETIC-O1';
+};
+</script></html>

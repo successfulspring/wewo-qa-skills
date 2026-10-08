@@ -1,74 +1,46 @@
-# Tester-facing black-box design
+# Test-point granularity and executable cases
 
-## Project target model
+## Stop by verifiability, not depth
 
-Define only targets that the project actually supports. Keep product surface separate from operating system:
+Organize branches around the business flow/object and rule, then split by relevant operation, state/role, input partition and outcome. Use only levels that add meaning. A branch ends when the leaf specifies one concrete condition, one trigger and one independently judgeable outcome. Depth varies with complexity; do not force three/four levels or pad every branch to a fixed depth.
 
-- `web`: browser-delivered product.
-- `mobile-app`: Android or iOS application, on a simulator/emulator or real device.
-- `desktop-app`: native Windows, macOS, or Linux client.
-- `mini-program`: host-platform mini application.
-- `other`: a tester-visible surface that does not fit the above; describe it precisely.
+Split a leaf when it contains separable combinations, alternatives, independent validations or multiple states. Each resulting leaf carries `rule_refs`, `coverage_item_refs` and `verification={condition, action, expected}`. Setup is not a test point. Assertions sharing one business outcome may remain together; unrelated outcomes need separate leaves. One case may verify several leaves as an explicit business flow.
 
-A web page tested on Windows is not a Windows desktop application. Do not create cases for excluded platforms. For multi-platform products, share one business case across targets and add a variant only when actions, permissions, presentation, or expected results differ.
+For example, given a confirmed rule “submitted records cannot be deleted, and failed deletion must preserve their binding”:
 
-## Test-point tree and coverage map
+```text
+Record management
+└─ Delete
+   ├─ Draft record
+   │  └─ No binding → delete → record absent from list [only if authorized by source]
+   └─ Submitted record
+      ├─ Delete → rejection message matches confirmed rule
+      ├─ Delete rejected → record still present after refresh
+      └─ Delete rejected → existing binding still displayed in related module
+```
 
-Build the test-point tree progressively from confirmed requirement units before writing detailed cases. Prefer business-readable hierarchy such as `module → feature/flow → rule or state → condition/data → observable behavior`. Internal grouping nodes organize the map; leaf nodes are the concrete verification obligations that detailed cases must cover.
+“Delete validation”, “check correct behavior”, or “abnormal data” alone is not an executable leaf. Exact message text should only be specified when the source/decision fixes it; otherwise specify the exact business meaning and observable rejection state.
 
-For every unit, consider the relevant dimensions without turning generic testing techniques into repetitive top-level branches:
+“Allowed”, “rejected” or “enters the process” alone also needs an observable outcome in that leaf. Use the source-defined post-state, value, record visibility or objective rejection evidence; do not leave its only concrete check in another branch. Give each boundary/decision row its own applicable expectation instead of copying an alternative such as “empty or over-limit” into both rows. Preserve the source's limits on what is known: do not invent an error message or an observation mechanism to fill this gap. Resolve material business ambiguity during design; runtime UI routes remain Executor's readiness check.
 
-- primary user journeys and release-blocking paths;
-- roles, permissions, ownership, tenancy, and visibility;
-- valid, invalid, empty, boundary, duplicate, and conflicting inputs;
-- decision rules and meaningful condition combinations;
-- state transitions, persistence, refresh, retry, cancellation, and recovery;
-- repeated submission, concurrency, ordering, asynchronous completion, timeout, and error feedback;
-- cross-screen or cross-system outcomes visible to the tester;
-- platform, browser, device, orientation, locale, or accessibility requirements only when in scope;
-- historical defects and changed dependencies when selecting regression coverage.
+## Coverage techniques
 
-Use equivalence partitioning and boundary analysis for inputs, decision tables for interacting rules, state-transition analysis for lifecycle behavior, and pairwise reduction only when exhaustive combinations are disproportionate. Pairwise output never replaces explicitly high-risk combinations.
+For each grounded rule, assess positive and reverse paths, equivalence partitions and relevant boundaries, valid/invalid state transitions, role/ownership scope and cross-object effects. For threshold N, consider the meaningful N−1/N/N+1 states with executable setup; distinguish count before and after the action. For selections, assess empty/single/multiple and mixed eligible/ineligible only where the operation supports them. For invalid inputs, verify both the error and preservation of prior business state when required.
 
-Keep test points concise. They state what must be verified and the observable outcome, not full preconditions, data, and step-by-step execution. One leaf test point may expand into several cases for meaningful state, data, or platform variants; one case may cover multiple tightly coupled leaf points when the steps and oracle remain clear.
+Walk the full flow from input through intermediate state to downstream visible outcome. Check partial success, interrupted/repeated operations and cleanup if the source or actual flow makes them relevant. Use a decision table for interacting conditions; document infeasible combinations. Pairwise selection is insufficient for a known interacting business rule. Derive regression from affected object/state/data consumers, not simply all pages or a fixed count.
 
-Assign stable `TP-*` IDs. Do not renumber unchanged points when the tree is reorganized. Trace every non-root node to a requirement unit and a source or confirmed decision.
+Company XMind examples guide meaningful nesting, concise titles and concrete leaves. They are not evidence that every example rule belongs in this project.
 
-## Test oracle rules
+Save actual technique derivations using [method records](method-records.md), not only dimension labels. Required obligations must reach leaves, cases and assertions.
 
-Every expected result must be observable and falsifiable. Name the visible state, message, navigation, permission effect, persisted value, generated artifact, or external tester-visible outcome. Avoid weak phrases such as “works correctly,” “normal,” or “successful” without a concrete oracle.
+## Detailed case readiness
 
-Do not use implementation details as the sole oracle. Logs, network traffic, and storage may be supporting evidence when the product result remains externally observable.
+Each case needs reproducible preconditions, concrete data values or uniquely resolvable selection criteria, numbered actions and expected results, leaf and source/decision references, suites, targets, cleanup, and planned assertions. Avoid boilerplate such as “prepare valid data / operate / result correct”. Give the tester the values, states, quantities and observation locations necessary to reproduce the outcome.
 
-## Suite membership
+For every required outcome, define a stable `AS-*` assertion with target applicability, exact `expected`, `observation`, leaf references and required evidence. Bind it to the step that produces or checks it. Check that the prose step expectation and assertion oracle express the same rule. No planned leaf may be covered only by an action without an assertion.
 
-- `smoke`: the smallest release-blocking set proving the build and critical journeys are testable. Favor short P0 paths and essential environment readiness.
-- `regression`: cases affected by the current change, dependencies, risk, or relevant defect history. It includes every smoke case.
-- `full`: every confirmed tester-facing case in the current requirement baseline.
+Automation feasibility is assessed from the specified UI interactions, obtainable data, deterministic observable oracle and safe repeat/reset procedure. Product code and live execution are not required to make this design assessment. Describe `candidate_route` using the intended business interaction and record its basis; do not invent verified selectors, record IDs or execution evidence.
 
-Do not populate suites by fixed percentage. Select from risk and change impact. The canonical case carries membership; the three Markdown files are projections, not independent copies.
+`automatable` is feasible without unresolved project-specific design conditions; declare external inputs using `RT-*` requirements. `conditional` names unresolved route/data/reset conditions and corresponding runtime requirements. `manual` names the human judgment or unavailable capability. An environment not yet deployed does not by itself make every case conditional: record the needed build/environment as runtime requirements. A missing business decision that changes the expected result must be clarified before finalizing the case, rather than hidden in an automation condition. Executor verifies actual readiness after deployment; an automatable label does not claim a successful run.
 
-## Automation feasibility per target
-
-Assess each applicable target independently:
-
-- `automatable`: the environment, data, actions, and oracle can be controlled and determined by an available UI tool.
-- `conditional`: automation is viable only after a stated condition is met, such as device access, a test account, seeded data, or an authorized bypass for a human verification step.
-- `manual`: reliable judgment or interaction requires a person or unavailable physical/external capability; state the reason.
-
-Choose a candidate route from `browser-ui`, `mobile-ui`, `desktop-ui`, `computer-use`, or `none`. This is a capability hint, not permission to install a tool or execute the case. Never give one global automation flag to a multi-target case.
-
-The test-point tree may flag an automation candidate, but final feasibility belongs to the detailed case because it depends on target, data, controllable actions, and deterministic oracle.
-
-## Runtime readiness declaration
-
-Translate every external prerequisite needed during execution into a reusable `RT-*` runtime requirement. Examples include the test-environment address, build identifier, account identity, credential channel, seeded data, device, control capability, and permission for side effects. Keep the readable `preconditions` and `test_data` fields, but do not rely on their prose as the executor's only input.
-
-- Put requirements shared by every applicable target of a case in the case's `runtime_requirement_refs`.
-- Put device-, platform-, or route-specific requirements in that target automation assessment's `runtime_requirement_refs`.
-- Set scope to `run`, `target`, or `case` according to the narrowest reusable lifetime. Target-scoped requirements name their target IDs.
-- Deduplicate equivalent requirements across cases. Do not create a separate base-URL or account requirement for every case.
-- A `conditional` automation assessment must identify the structured requirement that makes it executable; its prose `condition` only explains that dependency.
-- Separate a non-secret account identifier from its sensitive credential. Never store a password, token, cookie, one-time code, or private key. Sensitive requirements use only `secret-reference` or `authenticated-session` collection.
-
-`required_evidence` contains the smallest set of evidence types actually required to prove the oracle, not every type a tool could capture. Add multiple types only when each proves a distinct required assertion.
+Before finalizing, audit for invented rules, duplicated generic cases, bundled leaves, wrong states, untested reverse outcomes, unsupported “automatable” labels and affected flows missing regression. Validators cannot perform this semantic review.

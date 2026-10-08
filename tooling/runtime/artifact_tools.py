@@ -47,7 +47,9 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 def load_json(path: Path) -> Any:
     try:
-        return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_keys)
+        def reject_constant(value):
+            raise ValueError("non-finite JSON constant: " + value)
+        return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_keys, parse_constant=reject_constant)
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         raise ValidationFailure([f"{path}: cannot read valid UTF-8 JSON: {exc}"]) from exc
 
@@ -87,7 +89,7 @@ def walk_test_points(root: dict[str, Any]) -> Iterable[dict[str, Any]]:
         yield from walk_test_points(child)
 
 
-def validate_test_points_data(test_points: Any) -> None:
+def validate_test_points_data(test_points: Any, context: dict[str, Any] | None = None, *, final: bool = True) -> None:
     errors = schema_errors(test_points, TEST_POINTS_SCHEMA_PATH)
     if errors or not isinstance(test_points, dict):
         raise ValidationFailure(errors or ["$: test points must be an object"])
@@ -165,20 +167,73 @@ def validate_test_points_data(test_points: Any) -> None:
     if leaf_count == 0:
         errors.append("test-point tree requires at least one leaf")
     for unit in units:
-        if unit["status"] != "excluded" and unit["id"] not in referenced_units:
+        if final and unit["status"] != "excluded" and unit["id"] not in referenced_units:
             errors.append(f"{unit['id']}: included requirement unit is not represented in the test-point tree")
+
+    if context is not None:
+        from design_context import validate_design_context_data
+        validate_design_context_data(context, final=final)
+        if any(context["project"][key] != test_points["project"][key] for key in ("name", "artifact_id")):
+            errors.append("design context project does not match test points")
+        context_sources = {item["id"]: item for item in context["sources"]}
+        if set(context_sources) != source_ids:
+            errors.append("design context source IDs do not match test points")
+        for source in sources:
+            original = context_sources.get(source["id"], {})
+            if any(original.get(key) != value for key, value in source.items()):
+                errors.append(f"{source['id']}: source metadata differs from design context")
+        if context["decisions"] != decisions:
+            errors.append("test-point decisions differ from design context")
+        rules = {item["id"]: item for item in context["rules"]}
+        leaves = {node["id"]: node for node in nodes if not node["children"]}
+        from design_methods import derivation_links
+        errors.extend(derivation_links(context, leaves, final=final))
+        anchors = {f"{s['source_id']}#{s['anchor']}" for s in context["segments"] if s["read_status"] == "read" and s["disposition"] != "excluded"}
+        included_sources = {s["id"] for s in context["sources"] if s["scope"] == "included"}
+        for node in nodes:
+            for trace in node["trace_refs"]:
+                if trace.startswith("SRC-") and _root_reference(trace) not in included_sources:
+                    errors.append(f"{node['id']}: trace references excluded source {trace}")
+                if trace.startswith("SRC-") and "#" in trace and trace not in anchors:
+                    errors.append(f"{node['id']}: source anchor is not inventoried: {trace}")
+            for rid in node.get("rule_refs", []):
+                if rid not in rules or rules[rid]["status"] == "excluded":
+                    errors.append(f"{node['id']}: unknown or excluded business rule {rid}")
+        covered_rules: set[str] = set()
+        for rule in rules.values():
+            for dimension in rule["coverage"]:
+                for pid in dimension["test_point_refs"]:
+                    if pid not in leaves:
+                        errors.append(f"{rule['id']}: coverage references unknown or non-leaf point {pid}")
+                    elif rule["id"] not in leaves[pid].get("rule_refs", []):
+                        errors.append(f"{pid}: coverage rule is not referenced by leaf {rule['id']}")
+                    else:
+                        covered_rules.add(rule["id"])
+            if final and rule["status"] != "excluded" and rule["id"] not in covered_rules:
+                errors.append(f"{rule['id']}: included business rule has no leaf coverage")
+        coverage_pairs = {(r["id"], p) for r in rules.values() for d in r["coverage"] for p in d["test_point_refs"]}
+        for pid, leaf in leaves.items():
+            for rid in leaf.get("rule_refs", []):
+                if final and (rid, pid) not in coverage_pairs:
+                    errors.append(f"{pid}: leaf is absent from rule coverage {rid}")
 
     if errors:
         raise ValidationFailure(errors)
 
 
-def validate_test_points_file(path: Path) -> dict[str, Any]:
+def validate_test_points_file(path: Path, *, final: bool = True) -> dict[str, Any]:
     test_points = load_json(path)
-    validate_test_points_data(test_points)
+    validate_test_points_data(test_points, final=final)
+    from design_context import validate_design_context_file
+    context_path = path.parent / test_points["design_context_baseline"]["path"]
+    if not context_path.is_file() or sha256_file(context_path) != test_points["design_context_baseline"]["sha256"]:
+        raise ValidationFailure(["design_context_baseline.sha256 does not match adjacent design-context.json"])
+    context = validate_design_context_file(context_path, final=final)
+    validate_test_points_data(test_points, context, final=final)
     return test_points
 
 
-def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = None) -> None:
+def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = None, *, final: bool = True) -> None:
     errors = schema_errors(manifest, MANIFEST_SCHEMA_PATH)
     if errors or not isinstance(manifest, dict):
         raise ValidationFailure(errors or ["$: manifest must be an object"])
@@ -204,6 +259,11 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
     target_by_id = {item["id"]: item for item in targets}
     runtime_requirement_by_id = {item["id"]: item for item in runtime_requirements}
     case_ids = {item["id"] for item in cases}
+
+    from design_methods import review_errors
+    errors.extend(review_errors(manifest["review"], final=final))
+    if final and (manifest["review"]["status"] != "confirmed" or not manifest["review"].get("reviewed_at")):
+        errors.append("case design review is pending; reconcile Excel edits and review before execution")
 
     for requirement in runtime_requirements:
         requirement_id = requirement["id"]
@@ -309,6 +369,27 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
             if extra:
                 errors.append(f"{case_id}: automation assessment has non-applicable target(s) {', '.join(extra)}")
 
+        assertions = {item["id"]: item for item in case["assertions"]}
+        for duplicate in sorted(_duplicates(item["id"] for item in case["assertions"])):
+            errors.append(f"{case_id}: duplicate planned assertion {duplicate}")
+        used_assertions = {aid for step in case["steps"] for aid in step["assertion_refs"]}
+        for aid in used_assertions - set(assertions):
+            errors.append(f"{case_id}: step references unknown assertion {aid}")
+        for aid in set(assertions) - used_assertions:
+            errors.append(f"{case_id}: planned assertion is not assigned to a step: {aid}")
+        asserted_points = {pid for a in assertions.values() for pid in a["test_point_refs"]}
+        if asserted_points != set(case["test_point_refs"]):
+            errors.append(f"{case_id}: planned assertions must exactly cover case test-point references")
+        for assertion in assertions.values():
+            from observation_checks import check_errors
+            errors.extend(f"{case_id}/{assertion['id']}: {e}" for e in check_errors(assertion["check"]))
+            if not set(assertion["target_ids"]) <= applicable:
+                errors.append(f"{case_id}/{assertion['id']}: assertion has non-applicable target")
+        for target_id in applicable:
+            target_points = {pid for a in assertions.values() if target_id in a["target_ids"] for pid in a["test_point_refs"]}
+            if target_points != set(case["test_point_refs"]):
+                errors.append(f"{case_id}/{target_id}: each target requires planned assertions for every case test point")
+
         for automation in case["automation"]:
             feasibility = automation["feasibility"]
             route = automation["candidate_route"]
@@ -363,9 +444,9 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
         raise ValidationFailure(errors)
 
 
-def validate_manifest_file(path: Path) -> dict[str, Any]:
+def validate_manifest_file(path: Path, *, final: bool = True) -> dict[str, Any]:
     manifest = load_json(path)
-    validate_manifest_data(manifest)
+    validate_manifest_data(manifest, final=final)
     baseline = manifest["test_points_baseline"]
     test_points_path = (path.parent / baseline["path"]).resolve()
     try:
@@ -377,7 +458,17 @@ def validate_manifest_file(path: Path) -> dict[str, Any]:
     if sha256_file(test_points_path) != baseline["sha256"]:
         raise ValidationFailure(["test_points_baseline.sha256 does not match test-points.json"])
     test_points = validate_test_points_file(test_points_path)
-    validate_manifest_data(manifest, test_points)
+    validate_manifest_data(manifest, test_points, final=final)
+    context = load_json(path.parent / "design-context.json")
+    anchors = {f"{s['source_id']}#{s['anchor']}" for s in context["segments"] if s["read_status"] == "read" and s["disposition"] != "excluded"}
+    included_sources = {s["id"] for s in context["sources"] if s["scope"] == "included"}
+    errors = []
+    for case in manifest["cases"]:
+        for reference in case["source_refs"]:
+            if reference.startswith("SRC-") and (_root_reference(reference) not in included_sources or ("#" in reference and reference not in anchors)):
+                errors.append(f"{case['id']}: case source anchor is unread, excluded or not inventoried: {reference}")
+    if errors:
+        raise ValidationFailure(errors)
     return manifest
 
 
@@ -432,6 +523,9 @@ def validate_execution_profile_data(
 
     if profile["manifest_sha256"] != sha256_file(manifest_path):
         errors.append("manifest_sha256 does not match the supplied manifest")
+    workbook_path = manifest_path.parent / "test-cases.xlsx"
+    if not workbook_path.is_file() or profile["case_workbook_sha256"] != sha256_file(workbook_path):
+        errors.append("case_workbook_sha256 does not match adjacent test-cases.xlsx")
 
     target_by_id = {item["id"]: item for item in manifest["project"]["targets"]}
     for target_id in profile["targets"]:
@@ -488,6 +582,8 @@ def validate_execution_profile_file(
     manifest_path: Path,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     manifest = validate_manifest_file(manifest_path)
+    from case_workbook import validate_case_workbook_file
+    validate_case_workbook_file(manifest_path.parent / "test-cases.xlsx", manifest_path)
     profile = load_json(profile_path)
     validate_execution_profile_data(profile, manifest, manifest_path)
     referenced_manifest = (profile_path.parent / profile["manifest_path"]).resolve()
@@ -510,6 +606,9 @@ def validate_results_data(
     run = results["run"]
     if run["manifest_sha256"] != sha256_file(manifest_path):
         errors.append("run.manifest_sha256 does not match the supplied manifest")
+    workbook_path = manifest_path.parent / "test-cases.xlsx"
+    if not workbook_path.is_file() or run["case_workbook_sha256"] != sha256_file(workbook_path):
+        errors.append("run.case_workbook_sha256 does not match adjacent test-cases.xlsx")
 
     try:
         if _parse_datetime(run["finished_at"]) < _parse_datetime(run["started_at"]):
@@ -531,6 +630,8 @@ def validate_results_data(
             errors.append("execution profile suite does not match result run")
         if set(execution_profile["targets"]) != run_targets:
             errors.append("execution profile targets do not match result run")
+        if execution_profile["case_workbook_sha256"] != run["case_workbook_sha256"]:
+            errors.append("execution profile workbook does not match result run")
         binding_status = {item["requirement_id"]: item["status"] for item in execution_profile["bindings"]}
     else:
         binding_status = {}
@@ -582,10 +683,60 @@ def validate_results_data(
             if "manual" not in result.get("blocker", "").lower():
                 errors.append(f"{case_id}/{target_id}: manual not-run result must identify manual-only blocker")
 
+        planned = {a["id"]: a for a in case["assertions"] if target_id in a["target_ids"]}
+        submitted = [a["assertion_id"] for a in result["assertions"]]
+        for aid in sorted(_duplicates(submitted)):
+            errors.append(f"{case_id}/{target_id}: duplicate result assertion {aid}")
+        if status in {"passed", "failed", "flaky"} or result["attempts"] > 0:
+            for aid in sorted(set(planned) - set(submitted)):
+                errors.append(f"{case_id}/{target_id}: missing required assertion {aid}")
+        for aid in sorted(set(submitted) - set(planned)):
+            errors.append(f"{case_id}/{target_id}: unknown or inapplicable assertion {aid}")
+        evidence_by_id = {e["id"]: e for e in result["evidence"]}
+        attempt_verdicts = []
+        for eid in sorted(_duplicates(e["id"] for e in result["evidence"])):
+            errors.append(f"{case_id}/{target_id}: duplicate evidence id {eid}")
+        for assertion in result["assertions"]:
+            aid = assertion["assertion_id"]
+            expected_assertion = planned.get(aid)
+            if expected_assertion is None:
+                continue
+            if assertion["expected"] != expected_assertion["expected"]:
+                errors.append(f"{case_id}/{target_id}/{aid}: expected value differs from planned oracle")
+            for eid in assertion["evidence_refs"]:
+                if eid not in evidence_by_id:
+                    errors.append(f"{case_id}/{target_id}/{aid}: unknown evidence {eid}")
+            if assertion["status"] == "not-evaluated":
+                if not assertion.get("reason"):
+                    errors.append(f"{case_id}/{target_id}/{aid}: unevaluated assertion requires reason")
+            else:
+                if not assertion["actual"].strip():
+                    errors.append(f"{case_id}/{target_id}/{aid}: evaluated assertion requires actual observation")
+                types = {evidence_by_id[e]["type"] for e in assertion["evidence_refs"] if e in evidence_by_id}
+                if not assertion["evidence_refs"] or not set(expected_assertion["required_evidence"]) <= types:
+                    errors.append(f"{case_id}/{target_id}/{aid}: assertion is missing linked required evidence")
+                try:
+                    from observation_checks import evaluate_observations
+                    verdicts = evaluate_observations(assertion, expected_assertion, evidence_by_id, run, result, evidence_base_dir)
+                    derived = "passed" if verdicts and all(verdicts) else "failed"
+                    if assertion["status"] != derived:
+                        errors.append(f"{case_id}/{target_id}/{aid}: declared status disagrees with preserved UI observation comparison")
+                    attempt_verdicts.append(verdicts)
+                except (ValueError, ValidationFailure, TypeError, ArithmeticError) as exc:
+                    errors.append(f"{case_id}/{target_id}/{aid}: {exc}")
+        if status in {"passed", "failed", "flaky"} and len(attempt_verdicts) == len(planned):
+            attempts_passed = [all(v[i] for v in attempt_verdicts) for i in range(result["attempts"])]
+            if attempts_passed and any(attempts_passed) and not all(attempts_passed) and status != "flaky":
+                errors.append(f"{case_id}/{target_id}: mixed outcomes across attempts require flaky status")
+            if status == "flaky" and (not any(attempts_passed) or all(attempts_passed)):
+                errors.append(f"{case_id}/{target_id}: flaky requires preserved passing and failing attempt outcomes")
+        if status == "blocked" and any(a["status"] == "failed" for a in result["assertions"]):
+            errors.append(f"{case_id}/{target_id}: observed product mismatch cannot be hidden as blocked")
+
         if status == "passed":
             if result["attempts"] < 1:
                 errors.append(f"{case_id}/{target_id}: passed result requires at least one attempt")
-            if not result["assertions"] or not all(item["passed"] for item in result["assertions"]):
+            if not result["assertions"] or not all(item["status"] == "passed" for item in result["assertions"]):
                 errors.append(f"{case_id}/{target_id}: passed result requires only passing assertions")
             if not result["evidence"]:
                 errors.append(f"{case_id}/{target_id}: passed result requires evidence")
@@ -596,7 +747,7 @@ def validate_results_data(
         elif status == "failed":
             if result["attempts"] < 1 or not result.get("failure_reason"):
                 errors.append(f"{case_id}/{target_id}: failed result requires an attempt and failure_reason")
-            if not result["assertions"] or all(item["passed"] for item in result["assertions"]):
+            if not any(item["status"] == "failed" for item in result["assertions"]):
                 errors.append(f"{case_id}/{target_id}: failed result requires a failing assertion")
             if not result["evidence"]:
                 errors.append(f"{case_id}/{target_id}: failed result requires evidence")
@@ -617,6 +768,8 @@ def validate_results_data(
                     errors.append(f"{case_id}/{target_id}: evidence path escapes run directory: {evidence['path']}")
                 elif not evidence_path.is_file():
                     errors.append(f"{case_id}/{target_id}: evidence file does not exist: {evidence['path']}")
+                elif sha256_file(evidence_path) != evidence["sha256"]:
+                    errors.append(f"{case_id}/{target_id}: evidence hash mismatch: {evidence['path']}")
 
     if errors:
         raise ValidationFailure(errors)
@@ -648,6 +801,21 @@ def write_text_atomic(path: Path, content: str) -> None:
     descriptor, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(content)
+        os.replace(temp_name, path)
+    except Exception:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
+        raise
+
+
+def write_bytes_atomic(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
             stream.write(content)
         os.replace(temp_name, path)
     except Exception:

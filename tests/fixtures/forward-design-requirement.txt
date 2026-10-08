@@ -1,0 +1,49 @@
+Synthetic tester requirement: transfer order
+This is maintenance evaluation data, not a real company requirement.
+
+Existing business: an order belongs to an origin warehouse. Its states are Draft,
+Ready, InTransit, Completed. Each parcel belongs to one order. The origin warehouse
+shows its reserved quantity; the destination shows incoming quantity. These are
+visible UI values. Existing binding and quantities can be checked by order ID.
+
+This feature creates a transfer for a Ready order. A transfer accepts 1 through 20
+parcels, inclusive, in whole parcels. Empty selection is rejected. Each selected
+parcel must have a nonempty tracking number and belong to the selected order.
+The destination warehouse must differ from the origin.
+
+For orders in Ready, creation is allowed only when both payment is confirmed and
+stock is allocated. These are independent yes/no business conditions: all four
+combinations can be prepared using the test data described below. For each other
+combination the operation is rejected without changing the order or warehouse
+quantities. Do not invent exact error wording; the reason must identify the
+violated business condition.
+
+Roles: origin warehouse operator may create transfers for their own warehouse;
+another warehouse operator may view the order but cannot create its transfer;
+viewer may view but cannot create a transfer. All three roles can view the incoming
+quantity. Ownership scope is enforced even if an order is found by ID.
+
+State events: create-transfer and finish-transfer. In Draft neither is allowed.
+In Ready, create-transfer may move the order to InTransit subject to the other
+rules; finish-transfer is rejected. In InTransit, repeated create-transfer is
+rejected without another transfer or incoming increment; finish-transfer moves
+the order to Completed. In Completed both events are rejected, preserving state.
+
+On successful creation, selected parcel bindings remain on that order, the order
+becomes InTransit, origin reserved quantity remains unchanged, and destination
+incoming quantity increases by exactly the selected parcel count. On completion,
+destination incoming decreases by the transferred count; parcel bindings remain
+unchanged. Rejection for any invalid selection, permission, payment/stock or state
+must preserve the existing order state, parcel bindings, and both quantities.
+
+All preparation/reset is performed through a supplied tester-visible data console
+on a dedicated test environment. It can create named synthetic orders with chosen
+states, independent payment/stock flags, parcels including missing tracking and
+wrong-order records, and baseline quantities. It supports each role and warehouse
+scope and restores the named records. No product code is available at design time.
+This console is context for reproducibility, not evidence the implementation works.
+Target: one business client called qa-client; its UI control tool is available in
+the eventual test environment. Build/address/account session are runtime inputs.
+
+Scope: test design only. Do not add API/unit tests, unspecified performance limits,
+exact error text, notification rules, or unsupported platform variants.

@@ -20,7 +20,7 @@ Typical run inputs include the test environment identity and URL, application bu
 
 The profile stores live non-secret values and safe references only. Do not place passwords, cookies, tokens, one-time codes, private keys, or equivalent secrets in the manifest, profile, result JSON, screenshots, commands, report, or ordinary conversation. Resolve a sensitive requirement through the environment's approved secret reference. If none exists, ask the tester to perform login and reuse that authorized session; record only a session reference.
 
-Validate the frozen preflight before product interaction:
+Bind the profile to the exact reviewed case workbook as well as the manifest. Any later Excel edit invalidates this profile; reconcile the case baseline and prepare a new run. Validate the frozen preflight before product interaction:
 
 ```powershell
 <qa-tool> validate-execution-profile <run-dir>/execution-profile.json <artifact-dir>/test-manifest.json
@@ -41,7 +41,7 @@ Verify cleanup steps before execution. If cleanup cannot be performed safely, ma
 - Prefer stable roles, labels, accessibility nodes, test IDs, and explicit states over coordinates or timing guesses.
 - Wait on observable state transitions, not arbitrary sleeps.
 - Use seeded or uniquely named test data and record only non-sensitive identifiers.
-- Capture the minimum evidence sufficient to prove the assertion. Always capture failure state before cleanup when safe.
+- Match every planned assertion ID, target, observation location and original expected value. Record not-evaluated with a reason if interrupted. Capture the minimum evidence sufficient to prove each assertion and link its evidence IDs. Always capture failure state before cleanup when safe.
 - Console, network, logs, or storage may supplement an externally observable outcome; they may not replace it or create an API test route.
 
 ## Retries and flaky results

@@ -1,23 +1,12 @@
 # Bundled runtime tool
 
-The installed plugin includes a self-contained `wewo-qa` executable. The tester must not be asked to install Python, Node.js, `jsonschema`, or another language runtime.
-
-Resolve the plugin root two directories above `SKILL.md`, identify the host OS and CPU architecture, and select exactly one executable:
+The plugin includes a self-contained executable; testers must not install Python, Node.js or package dependencies. Resolve the plugin root two directories above `SKILL.md` and select the current host:
 
 - Windows x64: `<plugin-root>/bin/windows-x64/wewo-qa.exe`
 - macOS arm64: `<plugin-root>/bin/macos-arm64/wewo-qa`
 - macOS x64: `<plugin-root>/bin/macos-x64/wewo-qa`
 - Linux x64: `<plugin-root>/bin/linux-x64/wewo-qa`
 
-If the host has no matching bundled executable, report the unsupported OS/architecture. Do not fall back to the Python maintenance sources and do not ask the tester to install a runtime.
+Run `<qa-tool> --version`; these contracts require `wewo-qa 0.2.0`. If the executable is missing, unsupported or a different version, report that the installed plugin runtime needs rebuilding/updating. Do not use maintenance source modules as a fallback or ask testers to install dependencies.
 
-Use the selected executable as `<qa-tool>`:
-
-```text
-<qa-tool> validate-test-points <artifact-dir>/test-points.json
-<qa-tool> render-test-points-xmind <artifact-dir>/test-points.json --output <artifact-dir>/test-points.xmind
-<qa-tool> validate-test-manifest <artifact-dir>/test-manifest.json
-<qa-tool> render-case-docs <artifact-dir>/test-manifest.json --output-dir <artifact-dir>
-```
-
-Treat a non-zero exit as a failed artifact gate. Fix the canonical JSON and rerun the command; never hand-edit rendered files.
+Use the selected executable as `<qa-tool>` in [artifact contract](artifact-contract.md) and [source intake](source-intake.md). `--help` lists extraction, design-context validation, points validation/rendering, manifest validation, Excel rendering/import/validation, profile preparation/validation and result validation/reporting. A non-zero exit is a failed gate: fix the structured artifact and rerun; never bypass a review or discard workbook edits.

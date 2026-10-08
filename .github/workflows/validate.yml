@@ -34,9 +34,33 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
-      - name: Run bundled runtime
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tooling/requirements-dev.txt
+      - run: python -m pip install -r tooling/requirements-dev.txt
+      - run: python tooling/build_runtime.py --output-dir bin/${{ matrix.target }}
+      - name: Run fresh bundled runtime
         shell: bash
         run: |
           chmod +x bin/${{ matrix.target }}/wewo-qa* || true
-          bin/${{ matrix.target }}/wewo-qa* --help
-          bin/${{ matrix.target }}/wewo-qa* validate-test-points tests/fixtures/valid-test-points.json
+          python tooling/smoke_runtime.py --runtime bin/${{ matrix.target }}/wewo-qa$(if [ "${{ matrix.target }}" = "windows-x64" ]; then echo .exe; fi)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.target }}
+          path: bin/${{ matrix.target }}/
+          if-no-files-found: error
+
+  release-contract:
+    needs: [package, runtime-smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          path: bin
+      - run: python tooling/validate_package.py --release

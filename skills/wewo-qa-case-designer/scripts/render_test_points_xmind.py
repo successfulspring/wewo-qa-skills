@@ -8,18 +8,17 @@ validated Wewo QA test-point contract and uses only the Python standard library.
 """
 
 import argparse
+import copy
 import hashlib
 import io
 import json
-import os
-import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from artifact_tools import validate_test_points_file
+from artifact_tools import validate_test_points_file, write_bytes_atomic
 
 
 CONTENT_NS = "urn:xmind:xmap:xmlns:content:2.0"
@@ -49,6 +48,7 @@ def _topic_title(node: dict[str, Any]) -> str:
 
 def _topic_note(node: dict[str, Any]) -> str:
     lines = [
+        f"编号：{node['id']}",
         f"类型：{node['kind']}",
         f"状态：{node['status']}",
     ]
@@ -62,6 +62,13 @@ def _topic_note(node: dict[str, Any]) -> str:
         lines.append(f"依据：{node['rationale']}")
     if node.get("notes"):
         lines.append(node["notes"])
+    if node.get("rule_refs"):
+        lines.append("业务规则：" + ", ".join(node["rule_refs"]))
+    if node.get("coverage_item_refs"):
+        lines.append("设计覆盖项：" + ", ".join(node["coverage_item_refs"]))
+    if node.get("verification"):
+        check = node["verification"]
+        lines.extend(["条件：" + check["condition"], "动作：" + check["action"], "预期：" + check["expected"]])
     return "\n".join(lines)
 
 
@@ -174,7 +181,11 @@ def _render_legacy(test_points: dict[str, Any]) -> dict[str, bytes]:
     }
 
 
-def render_xmind_bytes(test_points: dict[str, Any], output_format: str = "legacy") -> bytes:
+def render_xmind_bytes(test_points: dict[str, Any], output_format: str = "legacy", *, draft: bool = False) -> bytes:
+    if draft:
+        test_points = copy.deepcopy(test_points)
+        test_points["tree"]["title"] = "草案（待确认）｜" + test_points["tree"]["title"]
+        test_points["tree"]["notes"] = "Draft for review; not a confirmed case or execution baseline."
     files = _render_legacy(test_points) if output_format == "legacy" else _render_zen(test_points)
     generated = _generated_datetime(test_points["generated_at"])
     zip_time = (max(generated.year, 1980), generated.month, generated.day, generated.hour, generated.minute, generated.second)
@@ -193,31 +204,19 @@ def render_xmind_bytes(test_points: dict[str, Any], output_format: str = "legacy
     return data
 
 
-def _write_bytes_atomic(path: Path, data: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-    try:
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(data)
-        os.replace(temp_name, path)
-    except Exception:
-        try:
-            os.unlink(temp_name)
-        except OSError:
-            pass
-        raise
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Render a validated Wewo QA test-point baseline as XMind.")
     parser.add_argument("test_points", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--format", choices=("legacy", "zen"), default="legacy")
+    parser.add_argument("--draft", action="store_true", help="Render an explicitly labeled review draft, without final coverage approval.")
     args = parser.parse_args()
     input_path = args.test_points.resolve()
-    output_path = args.output.resolve() if args.output else input_path.with_suffix(".xmind")
-    test_points = validate_test_points_file(input_path)
-    _write_bytes_atomic(output_path, render_xmind_bytes(test_points, args.format))
+    output_path = args.output.resolve() if args.output else input_path.with_suffix(".draft.xmind" if args.draft else ".xmind")
+    test_points = validate_test_points_file(input_path, final=not args.draft)
+    if output_path == input_path or output_path == input_path.with_name("design-context.json"):
+        raise ValueError("XMind output must not overwrite a design baseline")
+    write_bytes_atomic(output_path, render_xmind_bytes(test_points, args.format, draft=args.draft))
     print(f"WROTE: {output_path} ({args.format})")
     return 0
 

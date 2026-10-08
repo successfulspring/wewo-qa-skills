@@ -1,2 +1,8 @@
 jsonschema>=4.22,<5
+jsonpointer>=3,<4
 pyinstaller>=6.15,<7
+openpyxl>=3.1.5,<4
+pypdf>=6.0,<7
+python-docx>=1.2,<2
+python-pptx>=1.0.2,<2
+Pillow>=11,<13

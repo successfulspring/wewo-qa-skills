@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import json
 import sys
 import tempfile
 import unittest
@@ -9,287 +8,319 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parent.parent
-sys.path[:0] = [
-    str(ROOT / "tooling" / "runtime"),
-    str(ROOT / "skills" / "wewo-qa-case-designer" / "scripts"),
-    str(ROOT / "skills" / "wewo-qa-case-executor" / "scripts"),
-]
+sys.path[:0] = [str(ROOT / "tooling/runtime"), str(ROOT / "skills/wewo-qa-case-designer/scripts"), str(ROOT / "skills/wewo-qa-case-executor/scripts")]
 
-from artifact_tools import (  # noqa: E402
-    ValidationFailure,
-    expected_runtime_requirement_ids,
-    load_json,
-    sha256_file,
-    validate_execution_profile_data,
-    validate_manifest_data,
-    validate_manifest_file,
-    validate_results_data,
-    validate_results_file,
-    validate_test_points_data,
-    walk_test_points,
-)
-from render_case_docs import render_suite  # noqa: E402
-from render_execution_report import render_report  # noqa: E402
-from render_test_points_xmind import render_xmind_bytes  # noqa: E402
+from openpyxl import load_workbook
+from artifact_tools import ValidationFailure, sha256_file, validate_manifest_data, validate_manifest_file, validate_results_data, validate_results_file, validate_execution_profile_data, validate_execution_profile_file, validate_test_points_data
+from artifact_factory import artifact_set, execution_set, write_json, mutate_observation
+from case_workbook import read_case_workbook, render_case_workbook, validate_case_workbook_file
+from design_context import validate_design_context_data
+from render_execution_report import automatic_gate, render_report
+from render_test_points_xmind import render_xmind_bytes
 
 
-FIXTURE = ROOT / "tests" / "fixtures" / "valid-test-manifest.json"
-TEST_POINTS_FIXTURE = ROOT / "tests" / "fixtures" / "valid-test-points.json"
+class ArtifactTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.directory = Path(self.temp.name)
+        self.context, self.points, self.manifest, self.path = artifact_set(self.directory)
 
+    def test_grounded_chain_and_excel_roundtrip(self):
+        validate_manifest_file(self.path)
+        validate_case_workbook_file(self.directory / "test-cases.xlsx", self.path)
+        candidate, original, digest = read_case_workbook(self.directory / "test-cases.xlsx")
+        self.assertEqual(candidate, self.manifest)
+        self.assertEqual(original, self.manifest)
+        self.assertEqual(digest, sha256_file(self.path))
 
-def resolved_profile(manifest: dict, manifest_path: Path, suite: str, targets: list[str]) -> dict:
-    requirements = {item["id"]: item for item in manifest["runtime_requirements"]}
-    bindings = []
-    for requirement_id in sorted(expected_runtime_requirement_ids(manifest, suite, targets)):
-        requirement = requirements[requirement_id]
-        if requirement["sensitive"]:
-            bindings.append(
-                {
-                    "requirement_id": requirement_id,
-                    "status": "resolved",
-                    "source": "authenticated-session",
-                    "session_ref": "current-authorized-session"
-                }
-            )
-        else:
-            bindings.append(
-                {
-                    "requirement_id": requirement_id,
-                    "status": "resolved",
-                    "source": requirement["collection"],
-                    "value": f"resolved:{requirement_id}"
-                }
-            )
-    return {
-        "schema_version": "1.0",
-        "manifest_path": "../../test-manifest.json",
-        "manifest_sha256": sha256_file(manifest_path),
-        "suite": suite,
-        "targets": targets,
-        "collected_at": "2026-09-04T09:59:00+08:00",
-        "bindings": bindings
-    }
+    def test_context_unread_requirement_rejected(self):
+        self.context["segments"][0]["read_status"] = "needs-review"
+        with self.assertRaisesRegex(ValidationFailure, "has not been read"):
+            validate_design_context_data(self.context)
 
+    def test_context_rule_gap_rejected(self):
+        self.context["rules"] = self.context["rules"][1:]
+        with self.assertRaisesRegex(ValidationFailure, "has no modeled rule"):
+            validate_design_context_data(self.context)
 
-class ArtifactToolsTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.manifest = load_json(FIXTURE)
-        self.test_points = load_json(TEST_POINTS_FIXTURE)
+    def test_context_required_boundary_cannot_be_empty(self):
+        self.context["rules"][0]["coverage"][2].update(applicability="required", test_point_refs=[])
+        with self.assertRaisesRegex(ValidationFailure, "required coverage has no test points"):
+            validate_design_context_data(self.context)
 
-    def test_valid_manifest_and_nested_rendering(self) -> None:
-        validate_test_points_data(self.test_points)
-        validate_manifest_data(self.manifest, self.test_points)
-        smoke = render_suite(self.manifest, "smoke")
-        regression = render_suite(self.manifest, "regression")
-        full = render_suite(self.manifest, "full")
-        self.assertIn("QA-LOGIN-001", smoke)
-        self.assertNotIn("QA-LOGIN-002", smoke)
-        self.assertIn("QA-LOGIN-002", regression)
-        self.assertNotIn("QA-LOGIN-003", regression)
-        self.assertIn("QA-LOGIN-003", full)
-        self.assertIn("TP-LOGIN-SUCCESS", smoke)
+    def test_context_unknown_relationship_rule_rejected(self):
+        self.context["relationships"] = [{"id": "REL-UNKNOWN", "from_object": "OBJ-A", "to_object": "OBJ-B", "description": "Synthetic relation", "rule_refs": ["RULE-MISSING"]}]
+        with self.assertRaisesRegex(ValidationFailure, "unknown object|unknown or excluded rule"):
+            validate_design_context_data(self.context)
 
-    def test_test_point_rendering_supports_legacy_and_zen(self) -> None:
-        expected_titles = {node["title"] for node in walk_test_points(self.test_points["tree"])}
-        legacy = render_xmind_bytes(self.test_points, "legacy")
-        with zipfile.ZipFile(BytesIO(legacy)) as archive:
-            self.assertIn("content.xml", archive.namelist())
-            content = archive.read("content.xml").decode("utf-8")
-            for title in expected_titles:
-                self.assertIn(title, content)
-        zen = render_xmind_bytes(self.test_points, "zen")
-        with zipfile.ZipFile(BytesIO(zen)) as archive:
-            self.assertIn("content.json", archive.namelist())
-            content = archive.read("content.json").decode("utf-8")
-            for title in expected_titles:
-                self.assertIn(title, content)
+    def test_material_question_prevents_final_context(self):
+        self.context["open_questions"] = [{"id": "Q-001", "description": "Unresolved business rule", "material": True}]
+        with self.assertRaisesRegex(ValidationFailure, "unresolved material"):
+            validate_design_context_data(self.context)
+        validate_design_context_data(self.context, final=False)
 
-    def test_uncovered_leaf_test_point_is_rejected(self) -> None:
-        invalid = copy.deepcopy(self.manifest)
-        invalid["cases"] = invalid["cases"][:-1]
+    def test_draft_xmind_is_reviewable_but_not_executable(self):
+        self.context["review"] = {"status": "draft"}
+        self.context["open_questions"] = [{"id": "Q-001", "description": "Pending scope", "material": True}]
+        write_json(self.directory / "design-context.json", self.context)
+        self.points["design_context_baseline"]["sha256"] = sha256_file(self.directory / "design-context.json")
+        write_json(self.directory / "test-points.json", self.points)
+        from artifact_tools import validate_test_points_file
+        validate_test_points_file(self.directory / "test-points.json", final=False)
+        with zipfile.ZipFile(BytesIO(render_xmind_bytes(self.points, draft=True))) as archive:
+            self.assertIn("草案（待确认）", archive.read("content.xml").decode())
+        self.manifest["test_points_baseline"]["sha256"] = sha256_file(self.directory / "test-points.json")
+        write_json(self.path, self.manifest)
+        with self.assertRaisesRegex(ValidationFailure, "confirmed review|unresolved material"):
+            validate_manifest_file(self.path)
+
+    def test_point_requires_concrete_verification(self):
+        del self.points["tree"]["children"][0]["children"][0]["verification"]
+        with self.assertRaisesRegex(ValidationFailure, "verification"):
+            validate_test_points_data(self.points)
+
+    def test_point_unknown_source_anchor_rejected(self):
+        self.points["tree"]["children"][0]["children"][0]["trace_refs"] = ["SRC-001#not-read"]
+        with self.assertRaisesRegex(ValidationFailure, "not inventoried"):
+            validate_test_points_data(self.points, self.context)
+
+    def test_point_rule_coverage_must_be_bidirectional(self):
+        self.points["tree"]["children"][0]["children"][0]["rule_refs"] = ["RULE-LOGIN-002"]
+        with self.assertRaisesRegex(ValidationFailure, "coverage rule|missing from business"):
+            validate_test_points_data(self.points, self.context)
+
+    def test_context_digest_change_blocks_manifest(self):
+        self.context["review"]["notes"] = "Updated understanding"
+        write_json(self.directory / "design-context.json", self.context)
+        with self.assertRaisesRegex(ValidationFailure, "sha256"):
+            validate_manifest_file(self.path)
+
+    def test_deep_tree_preserved_in_both_xmind_formats(self):
+        original = copy.deepcopy(self.points["tree"]["children"][0]["children"][0])
+        branch = original
+        for i in range(22):
+            branch = {"id": f"TP-GROUP-{i}", "title": f"Business group {i}", "kind": "feature", "status": "confirmed", "requirement_unit_refs": ["RU-001"], "trace_refs": ["SRC-001"], "coverage_item_refs": [], "children": [branch]}
+        self.points["tree"]["children"][0]["children"][0] = branch
+        validate_test_points_data(self.points, self.context)
+        for fmt in ("legacy", "zen"):
+            with zipfile.ZipFile(BytesIO(render_xmind_bytes(self.points, fmt))) as archive:
+                data = archive.read("content.xml" if fmt == "legacy" else "content.json").decode()
+                self.assertIn("Business group 21", data)
+                self.assertIn(original["id"], data)
+                self.assertIn(original["verification"]["expected"], data)
+
+    def test_leaf_without_case_rejected(self):
+        self.manifest["cases"].pop()
         with self.assertRaisesRegex(ValidationFailure, "leaf test point is not covered"):
-            validate_manifest_data(invalid, self.test_points)
+            validate_manifest_data(self.manifest, self.points)
 
-    def test_case_cannot_reference_grouping_test_point(self) -> None:
-        invalid = copy.deepcopy(self.manifest)
-        invalid["cases"][0]["test_point_refs"] = ["TP-LOGIN"]
+    def test_grouping_node_cannot_be_case_coverage(self):
+        self.manifest["cases"][0]["test_point_refs"] = ["TP-LOGIN"]
         with self.assertRaisesRegex(ValidationFailure, "unknown or non-leaf"):
-            validate_manifest_data(invalid, self.test_points)
+            validate_manifest_data(self.manifest, self.points)
 
-    def test_manifest_file_is_bound_to_adjacent_test_point_baseline(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            artifact_dir = Path(directory)
-            test_points_path = artifact_dir / "test-points.json"
-            manifest_path = artifact_dir / "test-manifest.json"
-            test_points_path.write_text(
-                json.dumps(self.test_points, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            manifest = copy.deepcopy(self.manifest)
-            manifest["test_points_baseline"]["sha256"] = sha256_file(test_points_path)
-            manifest_path.write_text(
-                json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            validate_manifest_file(manifest_path)
-            test_points_path.write_text("{}\n", encoding="utf-8")
-            with self.assertRaisesRegex(ValidationFailure, "sha256 does not match"):
-                validate_manifest_file(manifest_path)
+    def test_case_source_anchor_must_be_read(self):
+        self.manifest["cases"][0]["source_refs"] = ["SRC-001#unread-invented-section"]
+        write_json(self.path, self.manifest)
+        with self.assertRaisesRegex(ValidationFailure, "case source anchor"):
+            validate_manifest_file(self.path)
 
-    def test_smoke_without_regression_is_rejected(self) -> None:
-        invalid = copy.deepcopy(self.manifest)
-        invalid["cases"][0]["suite_membership"] = ["smoke", "full"]
+    def test_assertion_must_bind_a_step(self):
+        self.manifest["cases"][0]["steps"][0]["assertion_refs"] = []
+        with self.assertRaisesRegex(ValidationFailure, "not assigned to a step"):
+            validate_manifest_data(self.manifest)
+
+    def test_each_target_needs_leaf_assertions(self):
+        for a in self.manifest["cases"][0]["assertions"]:
+            a["target_ids"] = ["web-chrome"]
+        with self.assertRaisesRegex(ValidationFailure, "each target requires planned assertions"):
+            validate_manifest_data(self.manifest)
+
+    def test_suite_nesting(self):
+        self.manifest["cases"][0]["suite_membership"] = ["smoke", "full"]
         with self.assertRaisesRegex(ValidationFailure, "smoke membership requires regression"):
-            validate_manifest_data(invalid, self.test_points)
+            validate_manifest_data(self.manifest)
 
-    def test_unknown_runtime_requirement_reference_is_rejected(self) -> None:
-        invalid = copy.deepcopy(self.manifest)
-        invalid["cases"][0]["runtime_requirement_refs"].append("RT-UNKNOWN")
+    def test_case_review_required(self):
+        self.manifest["review"] = {"status": "pending"}
+        with self.assertRaisesRegex(ValidationFailure, "review is pending"):
+            validate_manifest_data(self.manifest)
+        validate_manifest_data(self.manifest, final=False)
+
+    def test_runtime_inputs_cannot_collect_plain_credentials(self):
+        req = next(r for r in self.manifest["runtime_requirements"] if r["sensitive"])
+        req["collection"] = "user-input"
+        with self.assertRaisesRegex(ValidationFailure, "sensitive requirements"):
+            validate_manifest_data(self.manifest)
+
+    def test_unknown_runtime_requirement_rejected(self):
+        self.manifest["cases"][0]["runtime_requirement_refs"].append("RT-UNKNOWN")
         with self.assertRaisesRegex(ValidationFailure, "unknown runtime requirement"):
-            validate_manifest_data(invalid, self.test_points)
+            validate_manifest_data(self.manifest)
 
-    def test_execution_profile_aggregates_only_selected_automatic_scope(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            manifest_path = Path(directory) / "test-manifest.json"
-            manifest_path.write_text(json.dumps(self.manifest, ensure_ascii=False), encoding="utf-8")
-            expected = expected_runtime_requirement_ids(self.manifest, "smoke", ["web-chrome"])
-            self.assertEqual(
-                expected,
-                {"RT-ENV-BASE-URL", "RT-ACCOUNT-MEMBER", "RT-CREDENTIAL-MEMBER"},
-            )
-            profile = resolved_profile(self.manifest, manifest_path, "smoke", ["web-chrome"])
-            validate_execution_profile_data(profile, self.manifest, manifest_path)
 
-    def test_execution_profile_rejects_plaintext_sensitive_value(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            manifest_path = Path(directory) / "test-manifest.json"
-            manifest_path.write_text(json.dumps(self.manifest, ensure_ascii=False), encoding="utf-8")
-            profile = resolved_profile(self.manifest, manifest_path, "smoke", ["web-chrome"])
-            credential = next(
-                item for item in profile["bindings"] if item["requirement_id"] == "RT-CREDENTIAL-MEMBER"
-            )
-            credential.pop("session_ref")
-            credential["source"] = "user-input"
-            credential["value"] = "plaintext-password"
-            with self.assertRaisesRegex(ValidationFailure, "sensitive value must not be stored"):
-                validate_execution_profile_data(profile, self.manifest, manifest_path)
+class ExcelTests(unittest.TestCase):
+    setUp = ArtifactTests.setUp
 
-    def test_complete_results_validate_and_render(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            artifact_dir = Path(directory)
-            test_points_path = artifact_dir / "test-points.json"
-            test_points_path.write_text(
-                json.dumps(self.test_points, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            manifest = copy.deepcopy(self.manifest)
-            manifest["test_points_baseline"]["sha256"] = sha256_file(test_points_path)
-            manifest_path = artifact_dir / "test-manifest.json"
-            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            run_dir = artifact_dir / "runs" / "run-20260904-001"
-            run_dir.mkdir(parents=True)
-            profile = resolved_profile(manifest, manifest_path, "smoke", ["web-chrome", "ios-app"])
-            profile_path = run_dir / "execution-profile.json"
-            profile_path.write_text(json.dumps(profile, ensure_ascii=False), encoding="utf-8")
-            evidence_dir = run_dir / "evidence"
-            evidence_dir.mkdir()
-            (evidence_dir / "web.png").write_bytes(b"png")
-            (evidence_dir / "web.md").write_text("snapshot", encoding="utf-8")
-            results = {
-                "schema_version": "1.1",
-                "run": {
-                    "run_id": "run-20260904-001",
-                    "manifest_path": "../../test-manifest.json",
-                    "manifest_sha256": sha256_file(manifest_path),
-                    "execution_profile_path": "execution-profile.json",
-                    "execution_profile_sha256": sha256_file(profile_path),
-                    "suite": "smoke",
-                    "targets": ["web-chrome", "ios-app"],
-                    "environment": {"name": "QA", "kind": "test", "build": "1.0.0"},
-                    "started_at": "2026-09-04T10:00:00+08:00",
-                    "finished_at": "2026-09-04T10:05:00+08:00"
-                },
-                "results": [
-                    {
-                        "case_id": "QA-LOGIN-001",
-                        "target_id": "web-chrome",
-                        "status": "passed",
-                        "attempts": 1,
-                        "tool": "Playwright",
-                        "assertions": [
-                            {
-                                "description": "会员首页展示昵称",
-                                "expected": "显示测试会员昵称",
-                                "actual": "显示测试会员昵称",
-                                "passed": True
-                            }
-                        ],
-                        "evidence": [
-                            {"type": "screenshot", "path": "evidence/web.png", "description": "登录后页面"},
-                            {"type": "accessibility-snapshot", "path": "evidence/web.md", "description": "登录后结构化页面状态"}
-                        ],
-                        "observed": "登录成功并进入会员首页"
-                    },
-                    {
-                        "case_id": "QA-LOGIN-001",
-                        "target_id": "ios-app",
-                        "status": "blocked",
-                        "attempts": 0,
-                        "tool": "",
-                        "assertions": [],
-                        "evidence": [],
-                        "observed": "",
-                        "blocker": "未连接授权的 iOS 真机"
-                    }
-                ]
-            }
-            validate_results_data(results, manifest, manifest_path, run_dir, profile)
-            results_path = run_dir / "execution-results.json"
-            results_path.write_text(json.dumps(results, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            validate_results_file(results_path, manifest_path)
-            report = render_report(results, manifest)
-            self.assertIn("INCOMPLETE", report)
-            self.assertIn("未连接授权的 iOS 真机", report)
+    def edit(self, sheet, cell, value):
+        workbook = load_workbook(self.directory / "test-cases.xlsx")
+        workbook[sheet][cell] = value
+        workbook.save(self.directory / "test-cases.xlsx")
+        workbook.close()
 
-    def test_pass_without_evidence_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            run_dir = Path(directory)
-            manifest_path = run_dir / "test-manifest.json"
-            manifest_path.write_text(json.dumps(self.manifest, ensure_ascii=False), encoding="utf-8")
-            profile = resolved_profile(self.manifest, manifest_path, "smoke", ["web-chrome"])
-            profile_path = run_dir / "execution-profile.json"
-            profile_path.write_text(json.dumps(profile, ensure_ascii=False), encoding="utf-8")
-            results = {
-                "schema_version": "1.1",
-                "run": {
-                    "run_id": "run-invalid",
-                    "manifest_path": "test-manifest.json",
-                    "manifest_sha256": sha256_file(manifest_path),
-                    "execution_profile_path": "execution-profile.json",
-                    "execution_profile_sha256": sha256_file(profile_path),
-                    "suite": "smoke",
-                    "targets": ["web-chrome"],
-                    "environment": {"name": "QA", "kind": "test", "build": "1.0.0"},
-                    "started_at": "2026-09-04T10:00:00+08:00",
-                    "finished_at": "2026-09-04T10:01:00+08:00"
-                },
-                "results": [
-                    {
-                        "case_id": "QA-LOGIN-001",
-                        "target_id": "web-chrome",
-                        "status": "passed",
-                        "attempts": 1,
-                        "tool": "Playwright",
-                        "assertions": [{"description": "首页", "expected": "可见", "actual": "可见", "passed": True}],
-                        "evidence": [],
-                        "observed": "可见"
-                    }
-                ]
-            }
-            with self.assertRaisesRegex(ValidationFailure, "passed result requires evidence"):
-                validate_results_data(results, self.manifest, manifest_path, run_dir, profile)
+    def test_excel_edit_imports_pending_and_blocks_execution(self):
+        self.edit("测试用例", "C2", "Edited business case")
+        candidate, original, _ = read_case_workbook(self.directory / "test-cases.xlsx")
+        self.assertEqual(candidate["cases"][0]["title"], "Edited business case")
+        self.assertEqual(candidate["review"]["status"], "pending")
+        self.assertEqual(original, self.manifest)
+        with self.assertRaisesRegex(ValidationFailure, "unreviewed edits"):
+            validate_case_workbook_file(self.directory / "test-cases.xlsx", self.path)
+
+    def test_formula_rejected_without_evaluation(self):
+        self.edit("测试用例", "C2", '=HYPERLINK("https://example.invalid","case")')
+        with self.assertRaisesRegex(ValidationFailure, "formula"):
+            read_case_workbook(self.directory / "test-cases.xlsx")
+
+    def test_stale_workbook_blocked(self):
+        self.manifest["review"]["notes"] = "A new baseline"
+        write_json(self.path, self.manifest)
+        with self.assertRaisesRegex(ValidationFailure, "stale or different"):
+            validate_case_workbook_file(self.directory / "test-cases.xlsx", self.path)
+
+    def test_target_feasibility_edit_retained(self):
+        self.edit("自动化评估", "C2", "有条件自动化")
+        self.edit("自动化评估", "F2", "Authorized route must be provided")
+        candidate, _, _ = read_case_workbook(self.directory / "test-cases.xlsx")
+        self.assertEqual(candidate["cases"][0]["automation"][0]["feasibility"], "conditional")
+        self.assertEqual(candidate["review"]["status"], "pending")
+
+    def test_multiline_data_and_large_path_metadata_lossless(self):
+        self.manifest["cases"][0]["test_data"] = ["row one\nrow two\n", "another item  "]
+        paths = {f"TP-{i}": "Long business path / " * 100 for i in range(100)}
+        (self.directory / "test-cases.xlsx").write_bytes(render_case_workbook(self.manifest, sha256_file(self.path), paths, self.context))
+        candidate, _, _ = read_case_workbook(self.directory / "test-cases.xlsx")
+        self.assertEqual(candidate, self.manifest)
+
+    def test_sorted_rows_are_not_business_edits(self):
+        workbook = load_workbook(self.directory / "test-cases.xlsx")
+        sheet = workbook["测试用例"]
+        rows = [[c.value for c in row] for row in sheet.iter_rows(min_row=2)]
+        for i, row in enumerate(reversed(rows), 2):
+            for j, value in enumerate(row, 1):
+                sheet.cell(i, j).value = value
+        workbook.save(self.directory / "test-cases.xlsx")
+        workbook.close()
+        candidate, _, _ = read_case_workbook(self.directory / "test-cases.xlsx")
+        self.assertEqual(candidate, self.manifest)
+
+
+class ExecutionTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.directory = Path(self.temp.name)
+        self.manifest, self.path, self.profile, self.profile_path, self.results, self.results_path = execution_set(self.directory)
+
+    def validate(self):
+        validate_results_data(self.results, self.manifest, self.path, self.results_path.parent, self.profile)
+
+    def test_complete_required_assertion_set_passes(self):
+        self.validate()
+        validate_results_file(self.results_path, self.path)
+        self.assertEqual(automatic_gate(self.results, self.manifest), "PASSED")
+
+    def test_omitted_required_assertion_cannot_pass(self):
+        self.results["results"][0]["assertions"].pop()
+        with self.assertRaisesRegex(ValidationFailure, "missing required assertion"):
+            self.validate()
+
+    def test_rewritten_oracle_rejected(self):
+        self.results["results"][0]["assertions"][0]["expected"] = "whatever appeared"
+        with self.assertRaisesRegex(ValidationFailure, "differs from planned oracle"):
+            self.validate()
+
+    def test_assertion_evidence_type_must_match(self):
+        self.results["results"][0]["assertions"][0]["evidence_refs"] = [self.results["results"][0]["evidence"][0]["id"]]
+        with self.assertRaisesRegex(ValidationFailure, "missing linked required evidence"):
+            self.validate()
+
+    def test_unknown_assertion_and_duplicate_evidence_rejected(self):
+        result = self.results["results"][0]
+        result["assertions"][0]["assertion_id"] = "AS-UNPLANNED"
+        result["evidence"].append(copy.deepcopy(result["evidence"][0]))
+        with self.assertRaisesRegex(ValidationFailure, "unknown or inapplicable|duplicate evidence"):
+            self.validate()
+
+    def test_unchecked_assertion_cannot_pass(self):
+        self.results["results"][0]["assertions"][0].update(status="not-evaluated", actual="", evidence_refs=[], reason="Interrupted")
+        with self.assertRaisesRegex(ValidationFailure, "requires only passing assertions"):
+            self.validate()
+
+    def test_product_mismatch_report_is_failed(self):
+        result = self.results["results"][0]
+        result.update(status="failed", failure_reason="Home nickname differs")
+        result["assertions"][1].update(status="failed", actual="Another member nickname")
+        mutate_observation(result, result["assertions"][1], self.results_path.parent, "Another member nickname")
+        self.validate()
+        workbook = load_workbook(BytesIO(render_report(self.results, self.manifest)))
+        summary = {r[0].value: r[1].value for r in workbook["执行汇总"].iter_rows(min_row=2)}
+        self.assertEqual(summary["执行门禁"], "FAILED")
+        self.assertEqual(summary["断言检查覆盖率"], "2/2")
+        self.assertEqual(workbook["断言结果"]["H3"].value, "失败")
+        workbook.close()
+
+    def test_blocked_zero_attempt_reports_all_unchecked_assertions(self):
+        self.results["results"][0].update(status="blocked", attempts=0, assertions=[], evidence=[], blocker="Device unavailable")
+        self.validate()
+        workbook = load_workbook(BytesIO(render_report(self.results, self.manifest)))
+        self.assertEqual(workbook["断言结果"].max_row, 3)
+        self.assertEqual(workbook["断言结果"]["H2"].value, "未检查")
+        self.assertEqual(automatic_gate(self.results, self.manifest), "INCOMPLETE")
+        workbook.close()
+
+    def test_workbook_change_invalidates_frozen_profile(self):
+        with (self.directory / "test-cases.xlsx").open("ab") as stream:
+            stream.write(b"changed")
+        with self.assertRaisesRegex(ValidationFailure, "case_workbook_sha256"):
+            validate_execution_profile_file(self.profile_path, self.path)
+
+    def test_missing_evidence_file_rejected(self):
+        (self.results_path.parent / self.results["results"][0]["evidence"][0]["path"]).unlink()
+        with self.assertRaisesRegex(ValidationFailure, "evidence file does not exist"):
+            self.validate()
+
+    def test_evidence_escape_rejected(self):
+        self.results["results"][0]["evidence"][0]["path"] = "../outside.txt"
+        with self.assertRaisesRegex(ValidationFailure, "escapes run directory"):
+            self.validate()
+
+    def test_missing_runtime_condition_blocks_verdict(self):
+        binding = self.profile["bindings"][0]
+        self.profile["bindings"][0] = {"requirement_id": binding["requirement_id"], "status": "missing"}
+        with self.assertRaisesRegex(ValidationFailure, "unresolved runtime requirement"):
+            self.validate()
+
+    def test_profile_rejects_plaintext_sensitive_value(self):
+        binding = next(b for b in self.profile["bindings"] if "session_ref" in b)
+        binding["value"] = "synthetic-value-that-must-not-be-stored"
+        with self.assertRaisesRegex(ValidationFailure, "sensitive value must not be stored"):
+            validate_execution_profile_data(self.profile, self.manifest, self.path)
+
+    def test_profile_aggregates_selected_automatic_scope(self):
+        from artifact_tools import expected_runtime_requirement_ids
+        selected = expected_runtime_requirement_ids(self.manifest, "regression", ["ios-app"])
+        self.assertNotIn("RT-DATA-LOCKOUT-RESET", selected)
+        self.assertIn("RT-DEVICE-IOS", selected)
+        self.assertEqual(len(selected), 5)
+
+    def test_no_selected_pairs_cannot_pass_gate(self):
+        self.results["results"] = []
+        with self.assertRaisesRegex(ValidationFailure, "missing result|non-empty"):
+            self.validate()
+        self.assertEqual(automatic_gate(self.results, self.manifest), "NO_AUTOMATABLE_CASES")
 
 
 if __name__ == "__main__":

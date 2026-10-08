@@ -1,7 +1,7 @@
 interface:
   display_name: "Wewo QA Case Executor"
-  short_description: "按项目目标平台执行可自动化黑盒用例并保存完整测试证据"
-  default_prompt: "Use $wewo-qa-case-executor to execute the selected QA suite on the requested project targets and produce an evidence-backed report."
+  short_description: "执行已审查的Excel黑盒用例，逐项验证必检断言并生成Excel报告"
+  default_prompt: "Use $wewo-qa-case-executor to execute reviewed automatable Excel cases for the selected targets, verify every planned assertion, and generate an Excel report with linked evidence."
 
 policy:
   allow_implicit_invocation: true

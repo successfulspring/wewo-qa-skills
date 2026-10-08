@@ -1,0 +1,312 @@
+{
+  "schema_version": "1.1",
+  "generated_at": "2026-09-04T09:55:00+08:00",
+  "project": {
+    "name": "示例会员系统",
+    "artifact_id": "membership-login-v1"
+  },
+  "sources": [
+    {
+      "id": "SRC-001",
+      "title": "会员登录需求",
+      "type": "dingtalk-doc",
+      "locator": "https://alidocs.dingtalk.com/example",
+      "version": "评审版 1.0",
+      "retrieved_at": "2026-09-04T09:00:00+08:00",
+      "authority": "authoritative",
+      "scope": "included",
+      "inventory_status": "complete",
+      "method": "Synthetic fixture with explicitly scoped requirement slices"
+    }
+  ],
+  "segments": [
+    {
+      "id": "SEG-001-001",
+      "source_id": "SRC-001",
+      "anchor": "正常登录流程",
+      "kind": "text",
+      "content": "登录页结束加载并进入会员首页，页面显示该账号的会员昵称",
+      "read_status": "read",
+      "disposition": "requirement"
+    },
+    {
+      "id": "SEG-001-002",
+      "source_id": "SRC-001",
+      "anchor": "安全保护",
+      "kind": "text",
+      "content": "第五次失败后显示账号已锁定 15 分钟，继续提交不会进入会员首页",
+      "read_status": "read",
+      "disposition": "requirement"
+    },
+    {
+      "id": "SEG-001-003",
+      "source_id": "SRC-001",
+      "anchor": "输入校验",
+      "kind": "text",
+      "content": "密码输入框显示必填提示，页面停留在登录页且不会建立登录会话",
+      "read_status": "read",
+      "disposition": "requirement"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-001",
+      "unit_id": "RU-002",
+      "question_id": "Q-RU002-01",
+      "selected_options": [
+        "B"
+      ],
+      "topic": "连续失败后的行为",
+      "resolution": "连续输错 5 次后锁定账号 15 分钟",
+      "status": "confirmed",
+      "rationale": "产品负责人选择 B 并确认"
+    }
+  ],
+  "objects": [],
+  "relationships": [],
+  "flows": [],
+  "rules": [
+    {
+      "id": "RULE-LOGIN-001",
+      "title": "有效账号登录后显示会员首页和昵称",
+      "kind": "input",
+      "object_refs": [],
+      "segment_refs": [
+        "SEG-001-001"
+      ],
+      "decision_refs": [],
+      "condition": "测试环境可用",
+      "action": "打开登录入口并输入有效会员账号和密码后提交",
+      "expected": "登录页结束加载并进入会员首页，页面显示该账号的会员昵称",
+      "status": "confirmed",
+      "coverage": [
+        {
+          "dimension": "positive",
+          "applicability": "required",
+          "test_point_refs": [
+            "TP-LOGIN-SUCCESS"
+          ]
+        },
+        {
+          "dimension": "negative",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        },
+        {
+          "dimension": "boundary",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        },
+        {
+          "dimension": "state",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        },
+        {
+          "dimension": "role",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        },
+        {
+          "dimension": "cross-object",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        }
+      ],
+      "design_models": [
+        {
+          "id": "DM-LOGIN-001",
+          "method": "scenario",
+          "rationale": "This fixture isolates one confirmed login outcome; ordered boundaries and multifactor decisions are outside this fixture.",
+          "items": [
+            {
+              "id": "COV-LOGIN-001",
+              "dimensions": [
+                "positive"
+              ],
+              "condition": "测试环境可用",
+              "action": "打开登录入口并输入有效会员账号和密码后提交",
+              "expected": "登录页结束加载并进入会员首页，页面显示该账号的会员昵称",
+              "setup": "Use the synthetic test account and data described by the case.",
+              "disposition": "required",
+              "test_point_refs": [
+                "TP-LOGIN-SUCCESS"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "RULE-LOGIN-002",
+      "title": "连续失败五次后锁定账号十五分钟",
+      "kind": "input",
+      "object_refs": [],
+      "segment_refs": [
+        "SEG-001-002"
+      ],
+      "decision_refs": [
+        "DEC-001"
+      ],
+      "condition": "存在专用且未锁定的会员测试账号",
+      "action": "连续五次输入错误密码并提交",
+      "expected": "第五次失败后显示账号已锁定 15 分钟，继续提交不会进入会员首页",
+      "status": "confirmed",
+      "coverage": [
+        {
+          "dimension": "positive",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        },
+        {
+          "dimension": "negative",
+          "applicability": "required",
+          "test_point_refs": [
+            "TP-LOGIN-LOCKOUT"
+          ]
+        },
+        {
+          "dimension": "boundary",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        },
+        {
+          "dimension": "state",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        },
+        {
+          "dimension": "role",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        },
+        {
+          "dimension": "cross-object",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        }
+      ],
+      "design_models": [
+        {
+          "id": "DM-LOGIN-002",
+          "method": "scenario",
+          "rationale": "This fixture isolates one confirmed login outcome; ordered boundaries and multifactor decisions are outside this fixture.",
+          "items": [
+            {
+              "id": "COV-LOGIN-002",
+              "dimensions": [
+                "negative"
+              ],
+              "condition": "存在专用且未锁定的会员测试账号",
+              "action": "连续五次输入错误密码并提交",
+              "expected": "第五次失败后显示账号已锁定 15 分钟，继续提交不会进入会员首页",
+              "setup": "Use the synthetic test account and data described by the case.",
+              "disposition": "required",
+              "test_point_refs": [
+                "TP-LOGIN-LOCKOUT"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "RULE-LOGIN-003",
+      "title": "密码为空时阻止提交并显示必填提示",
+      "kind": "input",
+      "object_refs": [],
+      "segment_refs": [
+        "SEG-001-003"
+      ],
+      "decision_refs": [],
+      "condition": "登录页可访问",
+      "action": "输入会员账号、保持密码为空并尝试提交",
+      "expected": "密码输入框显示必填提示，页面停留在登录页且不会建立登录会话",
+      "status": "confirmed",
+      "coverage": [
+        {
+          "dimension": "positive",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        },
+        {
+          "dimension": "negative",
+          "applicability": "required",
+          "test_point_refs": [
+            "TP-LOGIN-PASSWORD-REQUIRED"
+          ]
+        },
+        {
+          "dimension": "boundary",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        },
+        {
+          "dimension": "state",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        },
+        {
+          "dimension": "role",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        },
+        {
+          "dimension": "cross-object",
+          "applicability": "not-applicable",
+          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
+          "test_point_refs": []
+        }
+      ],
+      "design_models": [
+        {
+          "id": "DM-LOGIN-003",
+          "method": "scenario",
+          "rationale": "This fixture isolates one confirmed login outcome; ordered boundaries and multifactor decisions are outside this fixture.",
+          "items": [
+            {
+              "id": "COV-LOGIN-003",
+              "dimensions": [
+                "negative"
+              ],
+              "condition": "登录页可访问",
+              "action": "输入会员账号、保持密码为空并尝试提交",
+              "expected": "密码输入框显示必填提示，页面停留在登录页且不会建立登录会话",
+              "setup": "Use the synthetic test account and data described by the case.",
+              "disposition": "required",
+              "test_point_refs": [
+                "TP-LOGIN-PASSWORD-REQUIRED"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "open_questions": [],
+  "review": {
+    "status": "confirmed",
+    "confirmed_at": "2026-09-04T09:55:00+08:00",
+    "checks": [
+      "source-fidelity",
+      "coverage",
+      "executability",
+      "oracle-consistency"
+    ],
+    "findings": []
+  }
+}

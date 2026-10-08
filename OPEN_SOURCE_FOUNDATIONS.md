@@ -13,3 +13,5 @@ This plugin is Wewo-owned and independent from `wewo-skills`. Its workflow adapt
 - [Mitscherlich/skills xmind](https://github.com/Mitscherlich/skills/tree/main/skills/xmind): an MIT-licensed, zero-dependency XMind skill supporting both XMind 8 XML and Zen/2020+ JSON. Wewo uses the same compatibility strategy while binding the renderer to its own validated test-point schema.
 
 The JSON contracts use JSON Schema Draft 2020-12. Release builds bundle the mature Python `jsonschema` implementation into self-contained executables so testers do not install Python or packages.
+
+Concrete observation references use [python-json-pointer](https://github.com/stefankoegl/python-json-pointer), bundled into the runtime, rather than a custom pointer parser. Excel/document extraction uses the declared mature libraries in `tooling/requirements-dev.txt`; these remain build dependencies, not tester installation steps.

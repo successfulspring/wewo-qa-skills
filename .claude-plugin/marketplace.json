@@ -13,7 +13,7 @@
         "source": "url",
         "url": "https://github.com/successfulspring/wewo-qa-skills.git"
       },
-      "description": "Progressively clarify requirements, confirm an XMind test-point baseline, generate smoke/regression/full cases, and execute automatable black-box cases.",
+      "description": "Understand business dependencies, confirm atomic XMind points, generate editable Excel black-box cases with planned assertions, and execute automatable cases with an Excel evidence report.",
       "homepage": "https://github.com/successfulspring/wewo-qa-skills"
     }
   ]

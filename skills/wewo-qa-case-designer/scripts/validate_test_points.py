@@ -10,9 +10,10 @@ from artifact_tools import ValidationFailure, validate_test_points_file, walk_te
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate a Wewo QA test-point baseline.")
     parser.add_argument("test_points", type=Path)
+    parser.add_argument("--draft", action="store_true")
     args = parser.parse_args()
     try:
-        test_points = validate_test_points_file(args.test_points.resolve())
+        test_points = validate_test_points_file(args.test_points.resolve(), final=not args.draft)
     except ValidationFailure as exc:
         for error in exc.errors:
             print(f"ERROR: {error}", file=sys.stderr)

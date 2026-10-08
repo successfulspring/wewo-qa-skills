@@ -1,36 +1,37 @@
-# Execution result contract
+# Execution results and assertion completeness
 
-The bundled runtime validates each result set against `references/schemas/execution-results.schema.json` from this Skill.
-
-## Output layout
-
-Create one immutable run directory beside the case artifacts:
+## Outputs
 
 ```text
 qa-artifacts/<artifact-slug>/runs/<run-id>/
 |-- execution-profile.json
 |-- execution-results.json
-|-- test-execution-report.md
+|-- test-execution-report.xlsx
 `-- evidence/
 ```
 
-Never mix evidence from separate runs. Use relative evidence paths inside the run directory. Freeze the execution profile before product interaction. The result JSON records SHA-256 digests of both the exact manifest and execution profile used.
+Use schema versions profile 1.1 and results 1.3. Freeze the run profile before interacting; bind results to the exact manifest, case workbook and profile SHA256 digests. Evidence paths resolve inside this run directory, never another run. Preserve prior run files.
 
-## Verdicts
+## Assertion contract
 
-- `passed`: observed behavior matches every required oracle; includes at least one passing assertion and evidence.
-- `failed`: deterministic product behavior contradicts an oracle; includes the mismatch, failure reason, and evidence.
-- `blocked`: execution could not reach a verdict because a prerequisite, capability, authorization, account, device, or environment was unavailable.
-- `flaky`: equivalent controlled attempts gave inconsistent outcomes; includes at least two attempts and evidence.
-- `not-run`: intentionally excluded from automation, including `manual-only`, or not started after an explicitly documented stop.
+For each case-target pair, derive the complete required assertion set from manifest `case.assertions` filtered by `target_ids`. Result assertion IDs must equal that set after execution starts, including interrupted or failed attempts. Never report only the successful subset. Each entry has `assertion_id`, description, original expected value, actual observation, status, observations and evidence references. Follow [observation evidence](observation-evidence.md) for raw tool output, per-attempt comparisons and evidence-review judgments.
 
-Tool or environment failures are not product failures. Product failures are not silently converted to blocked because a retry later passes.
+- `passed`/`failed` assertions need a non-empty actual observation and existing evidence IDs whose types cover that planned assertion's `required_evidence`.
+- `not-evaluated` needs a reason and cannot establish a case pass. A blocked/not-run pair with zero attempts can omit assertion entries; the report still lists its planned assertions as unchecked.
+- Evidence entries have a unique `id`, type, description, local path and SHA256. Bind each evaluated assertion to its proof, not just an unrelated screenshot attached to the case.
+- Preserve both attempted outcomes and evidence in a controlled retry. For `flaky`, record the inconsistency and both attempts in the observations/evidence; never silently convert it to passed.
 
-## Commands
+A case is `passed` only if all planned target assertions pass and case-level required evidence exists. `failed` requires a deterministic failing assertion, failure reason and evidence. `blocked` describes prerequisites, tool failures, unclear oracle or unauthorized actions. `flaky` requires equivalent controlled attempts with inconsistent outcomes. `not-run` requires zero attempts and a concrete reason, including manual-only. Tool failure is not proof of a product defect.
 
-```powershell
+## Report
+
+Excel sheets contain execution summary, one row per selected case-target, all planned assertion results (including unchecked), and a linked evidence index. The summary includes the automatic gate, counts and evaluated/required assertion ratio. Gate values are `PASSED`, `FAILED`, `INCOMPLETE`, or `NO_AUTOMATABLE_CASES`. Manual scope remains visible and is excluded only from the automatic gate.
+
+```text
 <qa-tool> validate-execution-results <run-dir>/execution-results.json <artifact-dir>/test-manifest.json
-<qa-tool> render-execution-report <run-dir>/execution-results.json <artifact-dir>/test-manifest.json --output <run-dir>/test-execution-report.md
+<qa-tool> render-execution-report <run-dir>/execution-results.json <artifact-dir>/test-manifest.json
 ```
 
-The renderer validates before writing. Fix the structured result rather than hand-editing the generated report.
+The renderer validates first. Correct structured records using actual execution evidence; never edit the report to hide a failed gate. JSON validation cannot establish that a UI action happened or that a screenshot proves the declared actual result; the execution agent must read the evidence and compare it to each frozen assertion.
+
+After collecting real observations, `<qa-tool> judge-execution-results <run-dir>/execution-results.json <artifact-dir>/test-manifest.json` derives deterministic verdicts and observed actual values into `execution-results.judged.json`. Use that file in the validation/render commands above. Evidence-review verdicts use explicitly reasoned judgments; missing/invalid evidence causes an error, not a fabricated pass. The Excel report shows comparison/timing, per-attempt pointers, review reasons and evidence hashes.

@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "wewo-qa-skills",
-      "description": "Tester-facing requirement clarification, XMind test-point design, black-box case generation, and automated case execution for Wewo QA.",
+      "description": "Understand business dependencies, confirm atomic XMind points, generate editable Excel black-box cases with planned assertions, and execute automatable cases with an Excel evidence report.",
       "source": {
         "source": "url",
         "url": "https://github.com/successfulspring/wewo-qa-skills.git",

@@ -10,9 +10,10 @@ from artifact_tools import ValidationFailure, validate_manifest_file
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate a Wewo QA test manifest.")
     parser.add_argument("manifest", type=Path)
+    parser.add_argument("--draft", action="store_true", help="Check an imported candidate without recording a completed case review.")
     args = parser.parse_args()
     try:
-        manifest = validate_manifest_file(args.manifest.resolve())
+        manifest = validate_manifest_file(args.manifest.resolve(), final=not args.draft)
     except ValidationFailure as exc:
         for error in exc.errors:
             print(f"ERROR: {error}", file=sys.stderr)

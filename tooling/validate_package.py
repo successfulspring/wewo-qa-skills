@@ -3,6 +3,8 @@ from __future__ import annotations
 """Validate the distributable cross-host Wewo QA plugin package."""
 
 import json
+import argparse
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -18,7 +20,12 @@ EXPECTED_SKILL_RESOURCES = {
     "wewo-qa-case-designer": {
         Path("references/schemas/test-manifest.schema.json"),
         Path("references/schemas/test-points.schema.json"),
-        Path("scripts/render_case_docs.py"),
+        Path("references/schemas/design-context.schema.json"),
+        Path("scripts/case_workbook.py"),
+        Path("scripts/design_context.py"),
+        Path("scripts/design_methods.py"),
+        Path("references/method-records.md"),
+        Path("scripts/extract_source.py"),
         Path("scripts/render_test_points_xmind.py"),
         Path("scripts/validate_test_manifest.py"),
         Path("scripts/validate_test_points.py"),
@@ -30,6 +37,10 @@ EXPECTED_SKILL_RESOURCES = {
         Path("scripts/render_execution_report.py"),
         Path("scripts/validate_execution_profile.py"),
         Path("scripts/validate_execution_results.py"),
+        Path("scripts/observation_checks.py"),
+        Path("scripts/judge_execution_results.py"),
+        Path("references/schemas/ui-observation.schema.json"),
+        Path("references/observation-evidence.md"),
     },
 }
 MANIFESTS = (
@@ -173,27 +184,45 @@ def validate_links(errors: list[str]) -> None:
                 errors.append(f"{path.relative_to(ROOT)}: missing local link {target}")
 
 
-def validate_runtimes(errors: list[str]) -> None:
+def validate_runtimes(errors: list[str], release: bool = False) -> list[str]:
+    pending = []
+    version = json.loads((ROOT / MANIFESTS[0]).read_text(encoding="utf-8"))["version"]
     for relative in RUNTIMES:
         path = ROOT / relative
         if not path.is_file():
             errors.append(f"missing bundled runtime {relative}")
         elif path.stat().st_size < 1_000_000:
             errors.append(f"bundled runtime is unexpectedly small: {relative}")
+        record_path = path.parent / "runtime.json"
+        record = load_json(record_path, errors) if record_path.is_file() else {}
+        if record.get("version") != version or not path.is_file() or record.get("sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
+            pending.append(str(relative))
+    if release and pending:
+        errors.append("release requires rebuilt version/hash-matched runtimes: " + ", ".join(pending))
+    return pending
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--release", action="store_true", help="Require current native binaries and their build records on all supported hosts.")
+    args = parser.parse_args()
     errors: list[str] = []
     validate_manifests(errors)
     validate_marketplaces(errors)
     validate_skills(errors)
     validate_links(errors)
-    validate_runtimes(errors)
+    pending = validate_runtimes(errors, args.release)
+    version = json.loads((ROOT / MANIFESTS[0]).read_text(encoding="utf-8"))["version"]
+    runtime_version = (ROOT / "tooling/runtime/runtime_version.py").read_text(encoding="utf-8")
+    if f'VERSION = "{version}"' not in runtime_version:
+        errors.append("runtime version does not match plugin metadata")
     if errors:
         for error in errors:
             print(f"ERROR: {error}")
         return 1
-    print("OK: distributable Codex and Claude Code plugin package")
+    print("OK: Codex and Claude Code package structure" + (" and release runtimes" if args.release else ""))
+    if pending:
+        print("PENDING native runtime builds (not release-ready): " + ", ".join(pending))
     return 0
 
 

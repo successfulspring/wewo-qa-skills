@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import argparse
 import os
+import hashlib
+import json
+import platform
 from pathlib import Path
 
 import PyInstaller.__main__
@@ -15,6 +18,7 @@ def main() -> int:
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parent.parent
+    version = json.loads((repo_root / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))["version"]
     output_dir = args.output_dir.resolve()
     work_dir = repo_root / ".tmp-pyinstaller"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -51,6 +55,9 @@ def main() -> int:
         )
 
     PyInstaller.__main__.run(pyinstaller_args)
+    binary = output_dir / ("wewo-qa.exe" if platform.system() == "Windows" else "wewo-qa")
+    record = {"version": version, "sha256": hashlib.sha256(binary.read_bytes()).hexdigest(), "system": platform.system(), "machine": platform.machine()}
+    (output_dir / "runtime.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     return 0
 
 

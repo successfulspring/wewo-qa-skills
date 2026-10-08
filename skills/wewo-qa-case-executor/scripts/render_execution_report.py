@@ -3,124 +3,88 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from pathlib import Path
-from typing import Any
+import json
 
-from artifact_tools import md_cell, validate_results_file, write_text_atomic
+from openpyxl import Workbook
 
-
-STATUS_LABELS = {
-    "passed": "通过",
-    "failed": "失败",
-    "blocked": "阻塞",
-    "flaky": "不稳定",
-    "not-run": "未执行",
-}
+from artifact_tools import ValidationFailure, validate_results_file, write_bytes_atomic
+from xlsx_support import add_table, workbook_bytes
 
 
-def _automatic_gate(results: dict[str, Any], manifest: dict[str, Any]) -> str:
-    case_by_id = {case["id"]: case for case in manifest["cases"]}
-    relevant = []
-    for result in results["results"]:
-        case = case_by_id[result["case_id"]]
-        automation = next(item for item in case["automation"] if item["target_id"] == result["target_id"])
-        if automation["feasibility"] != "manual":
-            relevant.append(result)
-    if any(item["status"] == "failed" for item in relevant):
+STATUS_LABELS = {"passed": "通过", "failed": "失败", "blocked": "阻塞", "flaky": "不稳定", "not-run": "未执行", "not-evaluated": "未检查"}
+
+
+def automatic_gate(results, manifest):
+    cases = {case["id"]: case for case in manifest["cases"]}
+    relevant = [r for r in results["results"] if next(a for a in cases[r["case_id"]]["automation"] if a["target_id"] == r["target_id"])["feasibility"] != "manual"]
+    if not relevant:
+        return "NO_AUTOMATABLE_CASES"
+    if any(r["status"] == "failed" for r in relevant):
         return "FAILED"
-    if any(item["status"] in {"blocked", "flaky", "not-run"} for item in relevant):
+    if any(r["status"] != "passed" for r in relevant):
         return "INCOMPLETE"
     return "PASSED"
 
 
-def render_report(results: dict[str, Any], manifest: dict[str, Any]) -> str:
+def render_report(results, manifest) -> bytes:
     run = results["run"]
-    project = manifest["project"]
-    counts = Counter(item["status"] for item in results["results"])
-    gate = _automatic_gate(results, manifest)
-    case_by_id = {case["id"]: case for case in manifest["cases"]}
-    target_by_id = {target["id"]: target for target in project["targets"]}
-    lines = [
-        f"# {project['name']} — 自动化测试执行报告",
-        "",
-        "| 字段 | 内容 |",
-        "| --- | --- |",
-        f"| 自动化执行门禁 | **{gate}** |",
-        f"| Run ID | {md_cell(run['run_id'])} |",
-        f"| 用例集 | {run['suite']} |",
-        f"| 目标 | {md_cell(', '.join(run['targets']))} |",
-        f"| 环境 | {md_cell(run['environment']['name'])}（{run['environment']['kind']}） |",
-        f"| 构建 | {md_cell(run['environment']['build'])} |",
-        f"| 开始时间 | {run['started_at']} |",
-        f"| 结束时间 | {run['finished_at']} |",
-        f"| 用例清单 SHA-256 | `{run['manifest_sha256']}` |",
-        f"| 执行条件清单 | {md_cell(run['execution_profile_path'])} @ `{run['execution_profile_sha256']}` |",
-        "",
-        "## 结果汇总",
-        "",
-        "| 通过 | 失败 | 阻塞 | 不稳定 | 未执行 | 总计 |",
-        "| ---: | ---: | ---: | ---: | ---: | ---: |",
-        f"| {counts['passed']} | {counts['failed']} | {counts['blocked']} | {counts['flaky']} | {counts['not-run']} | {len(results['results'])} |",
-        "",
-        "> `not-run` 包含人工用例；人工用例不计入自动化执行门禁，但必须由测试人员另行处理。",
-        "",
-        "## 明细",
-        "",
-        "| 用例 | 目标 | 平台 | 状态 | 尝试 | 工具 | 观察与原因 |",
-        "| --- | --- | --- | --- | ---: | --- | --- |",
-    ]
+    cases = {case["id"]: case for case in manifest["cases"]}
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    counts = Counter(r["status"] for r in results["results"])
+    assertion_rows, result_rows, evidence_rows = [], [], []
+    planned_auto = evaluated_auto = passed_auto = 0
     for result in results["results"]:
-        case = case_by_id[result["case_id"]]
-        target = target_by_id[result["target_id"]]
-        reason = result.get("failure_reason") or result.get("blocker") or result.get("observed") or "—"
-        platform = f"{target['surface']} / {target['os']}"
-        lines.append(
-            f"| {result['case_id']} {md_cell(case['title'])} | {result['target_id']} | {platform} | "
-            f"{STATUS_LABELS[result['status']]} | {result['attempts']} | {md_cell(result['tool'] or '—')} | {md_cell(reason)} |"
-        )
-
-    exceptional = [item for item in results["results"] if item["status"] != "passed"]
-    if exceptional:
-        lines.extend(["", "## 非通过项", ""])
-        for result in exceptional:
-            lines.extend([f"### {result['case_id']} / {result['target_id']} — {STATUS_LABELS[result['status']]}", ""])
-            if result.get("failure_reason"):
-                lines.append(f"- 失败原因：{result['failure_reason']}")
-            if result.get("blocker"):
-                lines.append(f"- 阻塞/未执行原因：{result['blocker']}")
-            if result.get("observed"):
-                lines.append(f"- 实际观察：{result['observed']}")
-            if result["assertions"]:
-                lines.append("- 断言：")
-                for assertion in result["assertions"]:
-                    symbol = "✓" if assertion["passed"] else "✗"
-                    lines.append(
-                        f"  - {symbol} {assertion['description']}；期望：{assertion['expected']}；实际：{assertion['actual']}"
-                    )
-            if result["evidence"]:
-                lines.append("- 证据：")
-                for evidence in result["evidence"]:
-                    lines.append(f"  - [{evidence['description']}]({evidence['path']})（{evidence['type']}）")
-            lines.append("")
-
+        case = cases[result["case_id"]]
+        target = result["target_id"]
+        assessment = next(a for a in case["automation"] if a["target_id"] == target)
+        actuals = {a["assertion_id"]: a for a in result["assertions"]}
+        eligible = assessment["feasibility"] != "manual"
+        for planned in case["assertions"]:
+            if target not in planned["target_ids"]:
+                continue
+            actual = actuals.get(planned["id"], {})
+            status = actual.get("status", "not-evaluated")
+            if eligible:
+                planned_auto += 1
+                evaluated_auto += status != "not-evaluated"
+                passed_auto += status == "passed"
+            assertion_rows.append([case["id"], target, planned["id"], planned["description"], planned["observation"], planned["expected"], actual.get("actual", ""), STATUS_LABELS[status], "\n".join(actual.get("evidence_refs", [])), actual.get("reason", result.get("blocker", ""))])
+            assertion_rows[-1].extend([planned["check"]["kind"], planned["check"]["timing"], json.dumps(actual.get("observations", []), ensure_ascii=False), json.dumps(actual.get("judgments", []), ensure_ascii=False)])
+        result_rows.append([case["id"], case["title"], target, STATUS_LABELS[result["status"]], assessment["feasibility"], result["attempts"], result["tool"], result.get("observed", ""), result.get("failure_reason", result.get("blocker", ""))])
+        for evidence in result["evidence"]:
+            evidence_rows.append([case["id"], target, evidence["id"], evidence["type"], evidence["description"], evidence["path"], evidence["sha256"]])
+    summary = [["项目", manifest["project"]["name"]], ["执行门禁", automatic_gate(results, manifest)], ["运行编号", run["run_id"]], ["用例集", run["suite"]], ["目标", "\n".join(run["targets"])], ["环境", run["environment"]["name"]], ["构建", run["environment"]["build"]], ["开始", run["started_at"]], ["结束", run["finished_at"]], ["用例基线 SHA256", run["manifest_sha256"]], ["用例 Excel SHA256", run["case_workbook_sha256"]], ["执行条件 SHA256", run["execution_profile_sha256"]]]
+    summary += [[label, counts[status]] for status, label in STATUS_LABELS.items() if status != "not-evaluated"]
+    summary += [["自动化必检断言数", planned_auto], ["已检查断言数", evaluated_auto], ["通过断言数", passed_auto], ["断言检查覆盖率", f"{evaluated_auto}/{planned_auto}" if planned_auto else "不适用"], ["说明", "人工用例和阻塞项保留在明细；门禁仅反映已选自动化范围，不能证明整个项目无缺陷。"]]
     if run.get("notes"):
-        lines.extend(["## 执行说明", "", run["notes"], ""])
-    return "\n".join(lines).rstrip() + "\n"
+        summary.append(["执行说明", run["notes"]])
+    add_table(workbook, "执行汇总", ["项目", "内容"], summary, {"项目": 30, "内容": 100})
+    add_table(workbook, "用例结果", ["用例编号", "用例名称", "目标编号", "状态", "自动化评估", "尝试次数", "执行工具", "实际观察", "失败或阻塞原因"], result_rows, {"用例名称": 40, "实际观察": 60, "失败或阻塞原因": 60})
+    add_table(workbook, "断言结果", ["用例编号", "目标编号", "断言编号", "检查内容", "观察位置", "预期结果", "实际结果", "状态", "证据编号", "未检查原因", "比较方式", "检查时机", "各次观察引用", "证据评判理由"], assertion_rows, {"预期结果": 50, "实际结果": 50, "未检查原因": 50})
+    sheet = add_table(workbook, "证据索引", ["用例编号", "目标编号", "证据编号", "类型", "说明", "文件路径", "SHA256"], evidence_rows, {"说明": 55, "文件路径": 65})
+    for row in range(2, sheet.max_row + 1):
+        cell = sheet.cell(row, 6)
+        cell.hyperlink = str(cell.value)
+        cell.style = "Hyperlink"
+    return workbook_bytes(workbook)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Render a Wewo QA execution report.")
+def main():
+    parser = argparse.ArgumentParser(description="Render a validated Wewo QA execution workbook.")
     parser.add_argument("results", type=Path)
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    results_path = args.results.resolve()
-    manifest_path = args.manifest.resolve()
-    output_path = args.output.resolve() if args.output else results_path.parent / "test-execution-report.md"
-    results, manifest = validate_results_file(results_path, manifest_path)
-    write_text_atomic(output_path, render_report(results, manifest))
-    print(f"WROTE: {output_path}")
+    try:
+        results_path, manifest_path = args.results.resolve(), args.manifest.resolve()
+        output = args.output.resolve() if args.output else results_path.parent / "test-execution-report.xlsx"
+        if output in {results_path, manifest_path, manifest_path.parent / "test-cases.xlsx"}:
+            raise ValidationFailure(["report must not overwrite an execution or case baseline"])
+        results, manifest = validate_results_file(results_path, manifest_path)
+        write_bytes_atomic(output, render_report(results, manifest))
+    except (ValidationFailure, OSError) as exc:
+        print(f"ERROR: {exc}")
+        return 1
+    print(f"WROTE: {output}")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

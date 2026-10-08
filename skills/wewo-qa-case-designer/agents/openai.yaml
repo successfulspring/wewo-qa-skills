@@ -1,7 +1,7 @@
 interface:
   display_name: "Wewo QA Case Designer"
-  short_description: "分段陪读需求，先确认XMind测试点再生成三套黑盒用例"
-  default_prompt: "Use $wewo-qa-case-designer to walk through these requirements with me in question batches, confirm an XMind test-point tree, and then generate smoke, regression, and full black-box cases."
+  short_description: "理解全局业务关联，确认最小XMind测试点后生成可编辑Excel用例"
+  default_prompt: "Use $wewo-qa-case-designer to understand these requirements and business dependencies, confirm atomic XMind test points, and produce reviewed editable Excel cases with planned assertions."
 
 policy:
   allow_implicit_invocation: true
