@@ -15,15 +15,15 @@ The manifest declares what execution needs; the run profile records what is actu
 Typical run inputs include the test environment identity and URL, application build or installed package, account roles and non-secret identifiers, seeded test-data references, required device and control capability, and allowed side effects with cleanup responsibility.
 
 ```powershell
-<qa-tool> prepare-execution-profile <artifact-dir>/test-manifest.json --suite <suite> --target <target-id> [--target <target-id> ...] --output <run-dir>/execution-profile.json
+<qa-tool> prepare-execution-profile <public-root>/.qa-state/test-manifest.json --suite <suite> --target <target-id> [--target <target-id> ...] --output <run-dir>/execution-profile.json
 ```
 
 The profile stores live non-secret values and safe references only. Do not place passwords, cookies, tokens, one-time codes, private keys, or equivalent secrets in the manifest, profile, result JSON, screenshots, commands, report, or ordinary conversation. Resolve a sensitive requirement through the environment's approved secret reference. If none exists, ask the tester to perform login and reuse that authorized session; record only a session reference.
 
-Bind the profile to the exact reviewed case workbook as well as the manifest. Any later Excel edit invalidates this profile; reconcile the case baseline and prepare a new run. Validate the frozen preflight before product interaction:
+Bind the profile to the exact reviewed selected-suite workbook; validate all three editable views as well as the manifest. Any later Excel edit invalidates this profile; reconcile the case baseline and prepare a new run. Validate the frozen preflight before product interaction:
 
 ```powershell
-<qa-tool> validate-execution-profile <run-dir>/execution-profile.json <artifact-dir>/test-manifest.json
+<qa-tool> validate-execution-profile <run-dir>/execution-profile.json <public-root>/.qa-state/test-manifest.json
 ```
 
 Supplying a runtime condition does not authorize unrelated environment changes or consequential side effects. Confirmation requirements below still apply just in time.
@@ -42,7 +42,7 @@ Verify cleanup steps before execution. If cleanup cannot be performed safely, ma
 - Wait on observable state transitions, not arbitrary sleeps.
 - Use seeded or uniquely named test data and record only non-sensitive identifiers.
 - Match every planned assertion ID, target, observation location and original expected value. Record not-evaluated with a reason if interrupted. Capture the minimum evidence sufficient to prove each assertion and link its evidence IDs. Always capture failure state before cleanup when safe.
-- Console, network, logs, or storage may supplement an externally observable outcome; they may not replace it or create an API test route.
+- Preserve the case's UI or interface-defined evidence surface. API setup/checks can support the journey; they cannot replace required UI observations. Native runner observations and original reports must prove generated acceptance tests actually ran.
 
 ## Retries and flaky results
 

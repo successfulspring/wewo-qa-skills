@@ -212,7 +212,8 @@ def main() -> int:
     parser.add_argument("--draft", action="store_true", help="Render an explicitly labeled review draft, without final coverage approval.")
     args = parser.parse_args()
     input_path = args.test_points.resolve()
-    output_path = args.output.resolve() if args.output else input_path.with_suffix(".draft.xmind" if args.draft else ".xmind")
+    from artifact_layout import artifact_root
+    output_path = args.output.resolve() if args.output else artifact_root(input_path) / "test-points.xmind"
     test_points = validate_test_points_file(input_path, final=not args.draft)
     if output_path == input_path or output_path == input_path.with_name("design-context.json"):
         raise ValueError("XMind output must not overwrite a design baseline")

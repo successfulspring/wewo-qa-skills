@@ -83,6 +83,9 @@ def evaluate_observations(assertion, planned, evidence, run, result, base_dir, *
         if sha256_file(path) != item["sha256"]:
             raise ValueError("observation evidence hash mismatch")
         record = load_json(path)
+        if record.get("format") == "wewo-qa-native-observation/1":
+            from native_execution import validate_native_observation
+            validate_native_observation(record, base_dir, run, result, assertion["assertion_id"])
         errors = schema_errors(record, EXECUTOR_SCHEMA_ROOT / "ui-observation.schema.json")
         if errors:
             raise ValueError("invalid UI observation: " + "; ".join(errors))

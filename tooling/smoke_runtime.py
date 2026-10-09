@@ -40,7 +40,7 @@ def main():
         run("render-case-workbook", path)
         run("validate-case-workbook", path)
         # A new export changes the workbook container hash; bind this run to that export.
-        workbook_hash = sha256_file(directory / "test-cases.xlsx")
+        workbook_hash = sha256_file(directory / "test-cases.smoke.xlsx")
         profile["case_workbook_sha256"] = workbook_hash
         write_json(profile_path, profile)
         results["run"]["case_workbook_sha256"] = workbook_hash
@@ -76,14 +76,14 @@ def main():
         if report["执行汇总"]["B3"].value != "FAILED":
             raise RuntimeError("controlled mismatch did not fail the report gate")
         report.close()
-        workbook = load_workbook(directory / "test-cases.xlsx")
+        workbook = load_workbook(directory / "test-cases.smoke.xlsx")
         workbook["测试用例"]["C2"] = "Tester edit"
-        workbook.save(directory / "test-cases.xlsx")
+        workbook.save(directory / "test-cases.smoke.xlsx")
         workbook.close()
         run("validate-case-workbook", path, fail=True)
         run("import-case-workbook", path)
         pending = json.loads((directory / "test-manifest.pending.json").read_text(encoding="utf-8"))
-        if pending["review"]["status"] != "pending" or pending["cases"][0]["title"] != "Tester edit":
+        if pending["review"]["status"] != "pending" or not any(c["title"] == "Tester edit" for c in pending["cases"]):
             raise RuntimeError("Excel edit was not retained for review")
         run("validate-test-manifest", directory / "test-manifest.pending.json", fail=True)
         source = directory / "source.docx"
@@ -106,7 +106,7 @@ def main():
         from PIL import Image
         Image.new("RGB", (10, 10), "white").save(directory / "source.png")
         run("extract-source", directory / "source.png", "--source-id", "SRC-004", "--output", directory / "image.json")
-        run("extract-source", directory / "test-cases.xlsx", "--source-id", "SRC-005", "--output", directory / "excel-source.json")
+        run("extract-source", directory / "test-cases.smoke.xlsx", "--source-id", "SRC-005", "--output", directory / "excel-source.json")
         run("extract-source", directory / "test-points.xmind", "--source-id", "SRC-006", "--output", directory / "xmind-source.json")
         context_path, points_path = directory / "design-context.json", directory / "test-points.json"
         context = json.loads(context_path.read_text(encoding="utf-8"))

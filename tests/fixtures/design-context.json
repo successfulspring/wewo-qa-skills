@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "generated_at": "2026-09-04T09:55:00+08:00",
   "project": {
     "name": "示例会员系统",
@@ -308,5 +308,12 @@
       "oracle-consistency"
     ],
     "findings": []
+  },
+  "requirement_confirmation": {
+    "status": "confirmed",
+    "confirmed_at": "2026-09-04T09:55:00+08:00",
+    "response_ref": "fixture:synthetic-user-confirmation",
+    "response_text": "Synthetic fixture user confirms the complete requirement summary.",
+    "snapshot_sha256": "f098988ba9120fa5da6c8d007cf5637a8da2512efdb79189a14e3a4cfd5a9da6"
   }
 }

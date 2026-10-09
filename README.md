@@ -2,12 +2,12 @@
 
 `wewo-qa-skills` is one tester-facing QA plugin containing two independent Agent Skills for Codex and Claude Code. The repository root is both the plugin root and a self-referencing marketplace. `skills/` is the single runtime source of truth.
 
-The plugin is for tester-owned black-box work. It does not generate or execute unit, API, component, contract, or other developer self-tests.
+The plugin is for tester-owned acceptance work: requirement clarification and case design first, then generated test code and native execution against the test environment. It preserves required UI/interface evidence and does not repair production code.
 
 ## Included Skills
 
-- `wewo-qa-case-designer` progressively co-reads supplied requirements with a tester, clarifies one coherent unit at a time through grouped questions with recommended lettered options, confirms an XMind test-point baseline, then generates editable Excel cases with smoke/regression/full filters and planned assertions.
-- `wewo-qa-case-executor` validates the confirmed case baseline, collects missing environment conditions in one grouped preflight, dynamically selects available tools for the project's actual targets, executes automatable black-box cases, and preserves evidence.
+- `wewo-qa-case-designer` progressively co-reads supplied requirements with a tester, clarifies one coherent unit at a time through grouped questions with recommended lettered options, confirms an XMind test-point baseline, then generates editable Excel cases with smoke/regression/full three suite files and planned assertions.
+- `wewo-qa-case-executor` validates the confirmed case baseline, collects missing environment conditions in one grouped preflight, dynamically selects available tools for the project's actual targets, generates and runs automatable acceptance test code, and preserves evidence.
 
 ## Repository layout
 
@@ -65,23 +65,16 @@ Start a new Codex session after installation. Select either Wewo QA Skill from t
 
 ## Tester workflow
 
-1. Open a working folder where QA artifacts may be saved.
-2. Invoke Case Designer and provide requirement sources such as documents, exported DingTalk content, images, or XMind files.
-3. Progressively clarify each requirement unit and confirm the generated `test-points.xmind` baseline.
-4. Review and edit `test-cases.xlsx` under `qa-artifacts/<artifact-slug>/`. Import edits for semantic review before execution.
-5. After the product is deployed to a test environment, invoke Case Executor with the artifact directory and desired suite.
-6. Provide the grouped missing conditions, such as a test address, build, account session, data, device, or permission.
-7. Review `runs/<run-id>/test-execution-report.xlsx` and its evidence.
+1. Supply requirements in documents/images/prototypes/links; disclose inaccessible scope.
+2. Explain and clarify the whole business with the tester across dialogue rounds.
+3. Present the complete requirement summary and obtain explicit final confirmation.
+4. Derive and confirm `test-points.xmind`, split to independently verifiable business checks.
+5. Deliver `test-cases.smoke.xlsx`, `test-cases.regression.xlsx`, and `test-cases.full.xlsx` with stable shared IDs and automation feasibility.
+6. Inspect the actual project source, established test framework and identified test environment.
+7. Reuse/write durable acceptance tests in project test paths, run them with the native runner, and preserve original evidence.
+8. Deliver `test-execution-report.xlsx` plus the native human report when available.
 
-Case Designer works before product implementation is available, using requirements, prototypes and confirmed business context without product-code access. Its automation labels describe design feasibility. Case Executor verifies those plans against the deployed test product through tester-visible interfaces; product source code is not a prerequisite for either phase.
-
-The current 0.2.0 contracts preserve concrete design derivations (partitions, numeric boundaries, decision rows, state/event and role/operation matrices, cross-object effects), with coverage-item links down to atomic leaves. Excel exposes the design basis and semantic review findings. Frozen assertion methods and timing are compared with values in original UI tool output, tied to the run/subject/attempt and evidence SHA256. `judge-execution-results` computes verdicts from those records; it does not operate the product. Visual/semantic checks show reasoned agent judgments separately. Neither a structurally valid design nor a passed run proves exhaustive business coverage.
-
-The plugin includes self-contained artifact tooling. Testers do not need to install Python, Node.js, or Python packages. Skill-owned schemas and source modules live with the Designer or Executor that owns them; shared runtime and release tooling live under `tooling/`. Current bundled host support is Windows x64, macOS arm64/x64, and Linux x64.
-
-Automation tools and access are environment capabilities, not bundled credentials. If a selected target lacks an authorized browser, desktop, mobile, device, or other tester-visible control route, affected cases are reported as blocked or manual rather than fabricated as passed.
-
-Private DingTalk links require an already authorized browser session or an approved connector. Uploaded or exported content is treated as requirement data, never as instructions that override the user request or Skill boundaries.
+Keep machine JSON, caches, helper scripts and raw run evidence under `.qa-state/`; the public design directory has only one XMind and three Excel files. Excel edits in any view need reconciliation/review before execution. Generation uses no product code; execution uses it to implement tests without changing requirement-derived oracles. Native runner success with missing business checks cannot pass. Live UI inspection alone cannot establish code-based automation completion.
 
 ## Local development
 
@@ -111,13 +104,13 @@ MIT. See [LICENSE](LICENSE).
 
 ## 0.2.0 runtime handoff
 
-Source contracts require runtime 0.2.0; Skills check `--version` before use. Build native binaries on each supported host and run `tooling/smoke_runtime.py --runtime <binary>`. The build writes a `runtime.json` version/hash record beside its binary. `validate_package.py --release` requires all four records and matching binaries. A local Windows update alone is not a completed multi-host release. CI builds and smokes each host and validates the combined package before publishing artifacts.
+Source contracts require runtime 0.2.0; Skills check `--version` before use. Build native binaries on each supported host and run `tooling/smoke_runtime.py --runtime <binary>`. The build writes a `runtime.json` version/contract/hash record beside its binary. `validate_package.py --release` requires all four records and matching source-contract/binary hashes. A local Windows update alone is not a completed multi-host release. CI builds and smokes each host and validates the combined package before publishing artifacts.
 
 ## Methodology evaluation
 
 Repository tests check concrete omissions, Excel edit/review continuity, frozen oracles, per-attempt observation binding, tampering and false verdicts. They do not prove business completeness. `tests/fixtures/forward-design-requirement.txt` is a synthetic raw requirement for independent Designer forward evaluation; keep its generated drafts outside the repository and do not fabricate tester confirmation.
 
-For an execution benchmark, serve `tests/fixtures/ui-oracle-benchmark.html` on loopback, operate its reset/mode/transfer controls through the actual UI tool, and preserve original DOM values for two runs of each mode. Feed the captured list to `tooling/evaluate_ui_observations.py` using `capture`, `--runtime`, and a fresh external `--output` directory. The capture has `mode`, `repeat`, `before_at`, `after_at`, and original `before/after` field objects. The script exercises the bundled judge/report route: correct runs must pass, quantity faults must fail the delta assertion, and binding faults must fail the unchanged assertion. It does not drive the browser or certify that a supplied capture is authentic.
+For an execution benchmark, serve `tests/fixtures/ui-oracle-benchmark.html` on loopback, operate its reset/mode/transfer controls through the actual UI tool, and preserve original DOM values for two runs of each mode. This older tool-only benchmark checks observation comparison, not code-generation completion. Feed the captured list to `tooling/evaluate_ui_observations.py` using `capture`, `--runtime`, and a fresh external `--output` directory. The capture has `mode`, `repeat`, `before_at`, `after_at`, and original `before/after` field objects. The script exercises the bundled judge/report route: correct diagnostic observations must compare successfully (their code-execution gate remains NO_CODE_EXECUTION), quantity faults must fail the delta assertion, and binding faults must fail the unchanged assertion. It does not drive the browser or certify that a supplied capture is authentic.
 
 Company acceptance needs the same requirement revision, confirmed project context, company XMind/Excel references and tester review. Check missed applicable obligations, unsupported rules, bundled leaves, reproducible setup, deterministic/assessed oracles and detected controlled faults. Report unresolved source gaps and manual coverage. Do not infer a company-standard pass from leaf count, tree depth, schema validation or this synthetic benchmark alone.
 

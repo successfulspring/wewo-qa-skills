@@ -27,7 +27,7 @@ Compare extracted counts and structure with the original. Record unavailable sec
 ## Local extraction
 
 ```text
-<qa-tool> extract-source <source-file> --source-id SRC-001 --output <artifact-dir>/source-cache/SRC-001.json
+<qa-tool> extract-source <source-file> --source-id SRC-001 --output <artifact-dir>/.qa-state/source-cache/SRC-001.json
 ```
 
 The JSON and adjacent `.assets` folder are a local reading cache, not an authoritative business model. Relative asset paths resolve against the cache JSON's directory; normalize them when moving segments into `design-context.json`. Record the source hash and preserve the original. Do not commit company sources, extracted private content or real test data into the plugin repository.

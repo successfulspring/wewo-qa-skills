@@ -1,4 +1,8 @@
-# Platform adapters
+# Platform reconnaissance and generated tests
+
+Resolve the established project runner before selecting agent control tools. Adapters below help inspect live UI and discover real locators; durable generated tests still execute through the native runner described in [native automation](native-automation.md). Tool-only clicking is not a formal code-execution pass.
+
+## Available reconnaissance adapters
 
 Read only the section for each selected target.
 

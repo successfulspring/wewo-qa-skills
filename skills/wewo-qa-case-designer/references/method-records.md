@@ -1,6 +1,6 @@
 # Concrete derivation records
 
-These are AI-maintained records in context schema 1.1. Choose techniques from each confirmed rule and risk, without requiring every technique for every project. Sources/decisions belong to the parent rule; `rationale` explains method selection and declared scope. A scenario model is sufficient for a simple independent outcome. Interacting conditions need a decision table; a scenario label must not conceal their combinations.
+These are AI-maintained records in context schema 1.2. Choose techniques from each confirmed rule and risk, without requiring every technique for every project. Sources/decisions belong to the parent rule; `rationale` explains method selection and declared scope. A scenario model is sufficient for a simple independent outcome. Interacting conditions need a decision table; a scenario label must not conceal their combinations.
 
 Each included rule has `design_models`. A model has `DM-*`, `method`, `rationale`, and `items`. Every item has `COV-*`, `dimensions`, concrete `condition/action/expected`, repeatable `setup`, `disposition` and `test_point_refs`. Required items link to atomic leaves. Excluded items have a source-grounded `reason` and no leaves; unavailable setup alone is a runtime limitation, not proof a combination is infeasible. Every leaf has `coverage_item_refs`. Mutually exclusive values/rows from the same model must use separate leaves. Several independently observable outcomes of one row may have separate leaves.
 
@@ -35,4 +35,4 @@ Manifest `assertion.check` has `kind`, `timing`, and the fields required below. 
 - `unchanged`: before/after typed values of the same subject/location; no expected_value.
 - `evidence-review`: objective `criteria`, no expected_value. For semantic wording or visual outcomes, Executor reads original UI output/images and gives reasoned per-attempt judgments. This is agent evidence assessment, not a deterministic numeric/text comparator. Subjective taste or unverifiable business effects remain manual.
 
-Keep human `expected`, typed comparison, step expectation, coverage item and source rule consistent. The validator cannot infer that two natural-language formulations have the same meaning. Automation labels must name a viable UI observation route and evidence; the comparison contract alone does not create a control capability.
+Keep human `expected`, typed comparison, step expectation, coverage item and source rule consistent. The validator cannot infer that two natural-language formulations have the same meaning. Automation labels must name a viable business observation route preserving the required UI/interface evidence and evidence; the comparison contract alone does not create a control capability.

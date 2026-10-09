@@ -29,8 +29,8 @@ class ArtifactTests(unittest.TestCase):
 
     def test_grounded_chain_and_excel_roundtrip(self):
         validate_manifest_file(self.path)
-        validate_case_workbook_file(self.directory / "test-cases.xlsx", self.path)
-        candidate, original, digest = read_case_workbook(self.directory / "test-cases.xlsx")
+        validate_case_workbook_file(self.directory / "test-cases.full.xlsx", self.path)
+        candidate, original, digest = read_case_workbook(self.directory / "test-cases.full.xlsx")
         self.assertEqual(candidate, self.manifest)
         self.assertEqual(original, self.manifest)
         self.assertEqual(digest, sha256_file(self.path))
@@ -165,55 +165,55 @@ class ExcelTests(unittest.TestCase):
     setUp = ArtifactTests.setUp
 
     def edit(self, sheet, cell, value):
-        workbook = load_workbook(self.directory / "test-cases.xlsx")
+        workbook = load_workbook(self.directory / "test-cases.full.xlsx")
         workbook[sheet][cell] = value
-        workbook.save(self.directory / "test-cases.xlsx")
+        workbook.save(self.directory / "test-cases.full.xlsx")
         workbook.close()
 
     def test_excel_edit_imports_pending_and_blocks_execution(self):
         self.edit("测试用例", "C2", "Edited business case")
-        candidate, original, _ = read_case_workbook(self.directory / "test-cases.xlsx")
+        candidate, original, _ = read_case_workbook(self.directory / "test-cases.full.xlsx")
         self.assertEqual(candidate["cases"][0]["title"], "Edited business case")
         self.assertEqual(candidate["review"]["status"], "pending")
         self.assertEqual(original, self.manifest)
         with self.assertRaisesRegex(ValidationFailure, "unreviewed edits"):
-            validate_case_workbook_file(self.directory / "test-cases.xlsx", self.path)
+            validate_case_workbook_file(self.directory / "test-cases.full.xlsx", self.path)
 
     def test_formula_rejected_without_evaluation(self):
         self.edit("测试用例", "C2", '=HYPERLINK("https://example.invalid","case")')
         with self.assertRaisesRegex(ValidationFailure, "formula"):
-            read_case_workbook(self.directory / "test-cases.xlsx")
+            read_case_workbook(self.directory / "test-cases.full.xlsx")
 
     def test_stale_workbook_blocked(self):
         self.manifest["review"]["notes"] = "A new baseline"
         write_json(self.path, self.manifest)
         with self.assertRaisesRegex(ValidationFailure, "stale or different"):
-            validate_case_workbook_file(self.directory / "test-cases.xlsx", self.path)
+            validate_case_workbook_file(self.directory / "test-cases.full.xlsx", self.path)
 
     def test_target_feasibility_edit_retained(self):
         self.edit("自动化评估", "C2", "有条件自动化")
         self.edit("自动化评估", "F2", "Authorized route must be provided")
-        candidate, _, _ = read_case_workbook(self.directory / "test-cases.xlsx")
+        candidate, _, _ = read_case_workbook(self.directory / "test-cases.full.xlsx")
         self.assertEqual(candidate["cases"][0]["automation"][0]["feasibility"], "conditional")
         self.assertEqual(candidate["review"]["status"], "pending")
 
     def test_multiline_data_and_large_path_metadata_lossless(self):
         self.manifest["cases"][0]["test_data"] = ["row one\nrow two\n", "another item  "]
         paths = {f"TP-{i}": "Long business path / " * 100 for i in range(100)}
-        (self.directory / "test-cases.xlsx").write_bytes(render_case_workbook(self.manifest, sha256_file(self.path), paths, self.context))
-        candidate, _, _ = read_case_workbook(self.directory / "test-cases.xlsx")
+        (self.directory / "test-cases.full.xlsx").write_bytes(render_case_workbook(self.manifest, sha256_file(self.path), paths, self.context))
+        candidate, _, _ = read_case_workbook(self.directory / "test-cases.full.xlsx")
         self.assertEqual(candidate, self.manifest)
 
     def test_sorted_rows_are_not_business_edits(self):
-        workbook = load_workbook(self.directory / "test-cases.xlsx")
+        workbook = load_workbook(self.directory / "test-cases.full.xlsx")
         sheet = workbook["测试用例"]
         rows = [[c.value for c in row] for row in sheet.iter_rows(min_row=2)]
         for i, row in enumerate(reversed(rows), 2):
             for j, value in enumerate(row, 1):
                 sheet.cell(i, j).value = value
-        workbook.save(self.directory / "test-cases.xlsx")
+        workbook.save(self.directory / "test-cases.full.xlsx")
         workbook.close()
-        candidate, _, _ = read_case_workbook(self.directory / "test-cases.xlsx")
+        candidate, _, _ = read_case_workbook(self.directory / "test-cases.full.xlsx")
         self.assertEqual(candidate, self.manifest)
 
 
@@ -230,7 +230,7 @@ class ExecutionTests(unittest.TestCase):
     def test_complete_required_assertion_set_passes(self):
         self.validate()
         validate_results_file(self.results_path, self.path)
-        self.assertEqual(automatic_gate(self.results, self.manifest), "PASSED")
+        self.assertEqual(automatic_gate(self.results, self.manifest), "NO_CODE_EXECUTION")
 
     def test_omitted_required_assertion_cannot_pass(self):
         self.results["results"][0]["assertions"].pop()
@@ -282,7 +282,7 @@ class ExecutionTests(unittest.TestCase):
         workbook.close()
 
     def test_workbook_change_invalidates_frozen_profile(self):
-        with (self.directory / "test-cases.xlsx").open("ab") as stream:
+        with (self.directory / "test-cases.smoke.xlsx").open("ab") as stream:
             stream.write(b"changed")
         with self.assertRaisesRegex(ValidationFailure, "case_workbook_sha256"):
             validate_execution_profile_file(self.profile_path, self.path)

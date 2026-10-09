@@ -1,6 +1,7 @@
 {
   "version": "0.2.0",
-  "sha256": "4269204b145d633ba33443a2a851d5aa99c0d9a09448c5ff9daca7be73334493",
+  "contract_sha256": "6605f58c70c4d6ca51f62e9e29e790de6b0653b351ece6a5b572204cd41390ea",
+  "sha256": "7a8457426d6c0939c744ecfa8189c4fa8bbeaf9dd4c90896bb0d665a51427568",
   "system": "Windows",
   "machine": "AMD64"
 }

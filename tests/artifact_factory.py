@@ -6,6 +6,7 @@ from pathlib import Path
 
 from artifact_tools import load_json, sha256_file
 from case_workbook import module_paths, render_case_workbook
+from artifact_layout import SUITES
 from prepare_execution_profile import build_profile
 
 
@@ -28,7 +29,8 @@ def artifact_set(directory: Path):
     manifest["test_points_baseline"]["sha256"] = sha256_file(directory / "test-points.json")
     path = directory / "test-manifest.json"
     write_json(path, manifest)
-    (directory / "test-cases.xlsx").write_bytes(render_case_workbook(manifest, sha256_file(path), module_paths(points), context))
+    for suite in SUITES:
+        (directory / f"test-cases.{suite}.xlsx").write_bytes(render_case_workbook(manifest, sha256_file(path), module_paths(points), context, suite))
     return context, points, manifest, path
 
 
@@ -49,7 +51,7 @@ def execution_set(directory: Path, suite="smoke", targets=None):
     write_json(profile_path, profile)
     results = {"schema_version": "1.3", "run": {
         "run_id": "synthetic-run", "manifest_path": Path(os.path.relpath(manifest_path, run_dir)).as_posix(),
-        "manifest_sha256": sha256_file(manifest_path), "case_workbook_sha256": sha256_file(directory / "test-cases.xlsx"),
+        "manifest_sha256": sha256_file(manifest_path), "case_workbook_sha256": sha256_file(directory / f"test-cases.{suite}.xlsx"),
         "execution_profile_path": "execution-profile.json", "execution_profile_sha256": sha256_file(profile_path),
         "suite": suite, "targets": targets, "environment": {"name": "Synthetic QA", "kind": "test", "build": "fixture"},
         "started_at": "2026-09-04T10:00:00+08:00", "finished_at": "2026-09-04T10:01:00+08:00",

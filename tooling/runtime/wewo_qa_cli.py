@@ -18,6 +18,8 @@ import case_workbook
 import design_context
 import extract_source
 import judge_execution_results
+import native_execution
+import deliverables
 import render_execution_report
 import render_test_points_xmind
 import validate_execution_profile
@@ -30,6 +32,7 @@ from runtime_version import VERSION
 COMMANDS = {
     "extract-source": extract_source.main,
     "validate-design-context": design_context.main,
+    "requirement-digest": design_context.digest_main,
     "validate-test-points": validate_test_points.main,
     "render-test-points-xmind": render_test_points_xmind.main,
     "validate-test-manifest": validate_test_manifest.main,
@@ -41,6 +44,8 @@ COMMANDS = {
     "validate-execution-results": validate_execution_results.main,
     "judge-execution-results": judge_execution_results.main,
     "render-execution-report": render_execution_report.main,
+    "run-native-tests": native_execution.main,
+    "validate-deliverables": deliverables.main,
 }
 
 

@@ -3,7 +3,7 @@
 ## Outputs
 
 ```text
-qa-artifacts/<artifact-slug>/runs/<run-id>/
+qa-artifacts/<artifact-slug>/.qa-state/runs/<run-id>/
 |-- execution-profile.json
 |-- execution-results.json
 |-- test-execution-report.xlsx
@@ -28,10 +28,14 @@ A case is `passed` only if all planned target assertions pass and case-level req
 Excel sheets contain execution summary, one row per selected case-target, all planned assertion results (including unchecked), and a linked evidence index. The summary includes the automatic gate, counts and evaluated/required assertion ratio. Gate values are `PASSED`, `FAILED`, `INCOMPLETE`, or `NO_AUTOMATABLE_CASES`. Manual scope remains visible and is excluded only from the automatic gate.
 
 ```text
-<qa-tool> validate-execution-results <run-dir>/execution-results.json <artifact-dir>/test-manifest.json
-<qa-tool> render-execution-report <run-dir>/execution-results.json <artifact-dir>/test-manifest.json
+<qa-tool> validate-execution-results <run-dir>/execution-results.json <public-root>/.qa-state/test-manifest.json
+<qa-tool> render-execution-report <run-dir>/execution-results.json <public-root>/.qa-state/test-manifest.json
 ```
 
 The renderer validates first. Correct structured records using actual execution evidence; never edit the report to hide a failed gate. JSON validation cannot establish that a UI action happened or that a screenshot proves the declared actual result; the execution agent must read the evidence and compare it to each frozen assertion.
 
-After collecting real observations, `<qa-tool> judge-execution-results <run-dir>/execution-results.json <artifact-dir>/test-manifest.json` derives deterministic verdicts and observed actual values into `execution-results.judged.json`. Use that file in the validation/render commands above. Evidence-review verdicts use explicitly reasoned judgments; missing/invalid evidence causes an error, not a fabricated pass. The Excel report shows comparison/timing, per-attempt pointers, review reasons and evidence hashes.
+After collecting real observations, `<qa-tool> judge-execution-results <run-dir>/execution-results.json <public-root>/.qa-state/test-manifest.json` derives deterministic verdicts and observed actual values into `execution-results.judged.json`. Use that file in the validation/render commands above. Evidence-review verdicts use explicitly reasoned judgments; missing/invalid evidence causes an error, not a fabricated pass. The Excel report shows comparison/timing, per-attempt pointers, review reasons and evidence hashes.
+
+## Generated-code execution
+
+A formal automation pass requires `native_test` for each eligible case-target, tied to the frozen native receipt, repository test asset, native test ID and evidence route. The report includes an 自动化实现 sheet. Legacy live-UI-only results can support diagnosis but their automation gate is `NO_CODE_EXECUTION`. Native success must also satisfy every planned assertion; skipped/undiscovered tests and missing observations cannot pass. Keep raw state/evidence private and export `test-execution-report.xlsx` to the public root, with links to the native human report.

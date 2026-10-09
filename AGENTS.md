@@ -1,10 +1,10 @@
 # Repository maintenance
 
 - Keep `skills/` as the single canonical Skill tree for every host.
-- Keep Case Designer limited to tester-facing case design and Case Executor limited to tester-facing black-box execution.
-- Do not add unit, API, component, contract, developer self-test, production implementation, or product repair workflows.
+- Keep Case Designer limited to requirement clarification and tester-facing case design; it does not inspect product source. Case Executor reads the actual repository and generates/runs durable acceptance automation from reviewed cases.
+- Preserve the reviewed cases' business evidence: UI or interface-defined acceptance tests and relevant setup/checks. Do not substitute mocked/unit-only checks for end-to-end acceptance, add unrelated developer test scope, or change production implementation.
 - Do not hardcode Web, mobile, desktop, iOS, Android, or a page-based interface as a universal project target.
-- Installed runtime behavior must not require testers to install Python, Node.js, or package dependencies.
+- Bundled artifact tooling must not require tester-installed language runtimes. Generated automation reuses the project/agent-provided test runtime and declared dependencies; disclose unavailable execution infrastructure.
 - Keep Designer-owned schemas and source modules under `skills/wewo-qa-case-designer/` and Executor-owned schemas and source modules under `skills/wewo-qa-case-executor/`.
 - Keep shared runtime, build, and package-validation sources under `tooling/`; maintain all Python sources only as build and test inputs for the bundled runtime executables.
 - Keep Claude and Codex plugin names and semantic versions synchronized.

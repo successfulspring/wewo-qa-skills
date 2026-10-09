@@ -3,7 +3,7 @@
   "name": "wewo-qa-skills",
   "displayName": "Wewo QA Skills",
   "version": "0.2.0",
-  "description": "Wewo 测试人员专用：理解需求与业务关联，设计最小 XMind 测试点，生成可编辑 Excel 黑盒用例并按必检断言执行自动化测试",
+  "description": "Wewo 测试：先交互澄清并确认需求，生成 XMind 与冒烟/回归/全量三份 Excel，再结合项目源码编写并执行自动化测试",
   "author": {
     "name": "Wewo",
     "url": "https://github.com/successfulspring"

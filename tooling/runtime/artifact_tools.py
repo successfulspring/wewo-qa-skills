@@ -1,4 +1,5 @@
 from __future__ import annotations
+from artifact_layout import case_workbook_path
 
 import hashlib
 import json
@@ -523,9 +524,9 @@ def validate_execution_profile_data(
 
     if profile["manifest_sha256"] != sha256_file(manifest_path):
         errors.append("manifest_sha256 does not match the supplied manifest")
-    workbook_path = manifest_path.parent / "test-cases.xlsx"
+    workbook_path = case_workbook_path(manifest_path, profile["suite"])
     if not workbook_path.is_file() or profile["case_workbook_sha256"] != sha256_file(workbook_path):
-        errors.append("case_workbook_sha256 does not match adjacent test-cases.xlsx")
+        errors.append("case_workbook_sha256 does not match selected suite workbook")
 
     target_by_id = {item["id"]: item for item in manifest["project"]["targets"]}
     for target_id in profile["targets"]:
@@ -582,8 +583,8 @@ def validate_execution_profile_file(
     manifest_path: Path,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     manifest = validate_manifest_file(manifest_path)
-    from case_workbook import validate_case_workbook_file
-    validate_case_workbook_file(manifest_path.parent / "test-cases.xlsx", manifest_path)
+    from case_workbook import validate_case_workbooks
+    validate_case_workbooks(manifest_path)
     profile = load_json(profile_path)
     validate_execution_profile_data(profile, manifest, manifest_path)
     referenced_manifest = (profile_path.parent / profile["manifest_path"]).resolve()
@@ -606,9 +607,9 @@ def validate_results_data(
     run = results["run"]
     if run["manifest_sha256"] != sha256_file(manifest_path):
         errors.append("run.manifest_sha256 does not match the supplied manifest")
-    workbook_path = manifest_path.parent / "test-cases.xlsx"
+    workbook_path = case_workbook_path(manifest_path, run["suite"])
     if not workbook_path.is_file() or run["case_workbook_sha256"] != sha256_file(workbook_path):
-        errors.append("run.case_workbook_sha256 does not match adjacent test-cases.xlsx")
+        errors.append("run.case_workbook_sha256 does not match selected suite workbook")
 
     try:
         if _parse_datetime(run["finished_at"]) < _parse_datetime(run["started_at"]):
@@ -693,6 +694,23 @@ def validate_results_data(
         for aid in sorted(set(submitted) - set(planned)):
             errors.append(f"{case_id}/{target_id}: unknown or inapplicable assertion {aid}")
         evidence_by_id = {e["id"]: e for e in result["evidence"]}
+        if result.get("native_test") and evidence_base_dir is not None:
+            link = result["native_test"]
+            receipt_path = _safe_evidence_path(evidence_base_dir, link["receipt_path"])
+            if receipt_path is None or not receipt_path.is_file() or sha256_file(receipt_path) != link["receipt_sha256"]:
+                errors.append(f"{case_id}/{target_id}: native receipt missing or changed")
+            else:
+                receipt = load_json(receipt_path)
+                native_binding = [b for b in receipt["bindings"] if (b["case_id"], b["target_id"]) == (case_id,target_id)]
+                if len(native_binding) != 1 or any(link[k] != native_binding[0][k] for k in ("asset","test_id","route")) or receipt["run_id"] != run["run_id"]:
+                    errors.append(f"{case_id}/{target_id}: native mapping differs from the execution receipt")
+                if status == "passed":
+                    for a in result["assertions"]:
+                        for observation in a["observations"]:
+                            e = evidence_by_id.get(observation["evidence_id"])
+                            p = _safe_evidence_path(evidence_base_dir,e["path"]) if e else None
+                            if p is None or not p.is_file() or load_json(p).get("format") != "wewo-qa-native-observation/1":
+                                errors.append(f"{case_id}/{target_id}: native passed case requires runner-produced observations")
         attempt_verdicts = []
         for eid in sorted(_duplicates(e["id"] for e in result["evidence"])):
             errors.append(f"{case_id}/{target_id}: duplicate evidence id {eid}")

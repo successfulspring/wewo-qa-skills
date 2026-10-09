@@ -16,7 +16,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "tooling/runtime"), str(ROOT / "skills/wewo-qa-case-designer/scripts"), str(ROOT / "skills/wewo-qa-case-executor/scripts"), str(ROOT / "tests")]
 from artifact_factory import artifact_set, write_json
 from artifact_tools import load_json, sha256_file, validate_manifest_file
-from case_workbook import module_paths, render_case_workbook
+from case_workbook import render_case_workbooks
+from design_context import requirement_digest
 from prepare_execution_profile import build_profile
 
 
@@ -68,13 +69,19 @@ def main():
     manifest["cases"] = [case]
     manifest["runtime_requirements"] = [manifest["runtime_requirements"][0]]
     manifest["runtime_requirements"][0].update(description="Loopback synthetic fixture",name="Fixture address")
+    context["requirement_confirmation"] = {
+        "status": "confirmed", "confirmed_at": "2026-10-09T00:00:00Z",
+        "response_ref": "maintainer-synthetic-benchmark",
+        "response_text": "Synthetic benchmark fixture only; not a real tester approval.",
+        "snapshot_sha256": requirement_digest(context),
+    }
     write_json(output / "design-context.json", context)
     points["design_context_baseline"]["sha256"] = sha256_file(output / "design-context.json")
     write_json(output / "test-points.json", points)
     manifest["test_points_baseline"]["sha256"] = sha256_file(output / "test-points.json")
     write_json(path, manifest)
     validate_manifest_file(path)
-    (output / "test-cases.xlsx").write_bytes(render_case_workbook(manifest,sha256_file(path),module_paths(points),context))
+    render_case_workbooks(path)
     summary = []
     for capture in load_json(args.capture):
         run_id = f"ui-{capture['mode']}-{capture['repeat']}"
@@ -84,7 +91,7 @@ def main():
         profile = build_profile(manifest,path,profile_path,"smoke",[target])
         for binding in profile["bindings"]: binding.update(status="resolved",source="user-input",value="http://127.0.0.1:8769/ui-oracle-benchmark.html")
         write_json(profile_path,profile)
-        run = {"run_id":run_id,"manifest_path":"../../test-manifest.json","manifest_sha256":sha256_file(path),"case_workbook_sha256":sha256_file(output / "test-cases.xlsx"),"execution_profile_path":"execution-profile.json","execution_profile_sha256":sha256_file(profile_path),"suite":"smoke","targets":[target],"environment":{"name":"Loopback synthetic UI","kind":"test","build":"benchmark-1"},"started_at":capture["before_at"],"finished_at":capture["after_at"]}
+        run = {"run_id":run_id,"manifest_path":"../../test-manifest.json","manifest_sha256":sha256_file(path),"case_workbook_sha256":sha256_file(output / "test-cases.smoke.xlsx"),"execution_profile_path":"execution-profile.json","execution_profile_sha256":sha256_file(profile_path),"suite":"smoke","targets":[target],"environment":{"name":"Loopback synthetic UI","kind":"test","build":"benchmark-1"},"started_at":capture["before_at"],"finished_at":capture["after_at"]}
         result = {"case_id":case["id"],"target_id":target,"attempts":1,"tool":"cua-repl/browser-playwright","status":"passed","observed":"Original DOM values captured by the browser tool; verdicts are derived next.","assertions":[],"evidence":[]}
         for phase in ["before","after"]:
             record = {"format":"wewo-qa-ui-observation/1","run_id":run_id,"case_id":case["id"],"target_id":target,"attempt":1,"subject":capture[phase]["subject"],"location":"Synthetic order fields","captured_at":capture[phase + "_at"],"tool":result["tool"],"raw":capture[phase]}

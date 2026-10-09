@@ -7,6 +7,7 @@ import os
 import hashlib
 import json
 import platform
+import sys
 from pathlib import Path
 
 import PyInstaller.__main__
@@ -24,6 +25,9 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     runtime_sources = repo_root / "tooling" / "runtime"
+    sys.path.insert(0, str(runtime_sources))
+    from runtime_contract import contract_digest
+    contract_hash = contract_digest(repo_root)
     skill_sources = (
         repo_root / "skills" / "wewo-qa-case-designer" / "scripts",
         repo_root / "skills" / "wewo-qa-case-executor" / "scripts",
@@ -56,7 +60,7 @@ def main() -> int:
 
     PyInstaller.__main__.run(pyinstaller_args)
     binary = output_dir / ("wewo-qa.exe" if platform.system() == "Windows" else "wewo-qa")
-    record = {"version": version, "sha256": hashlib.sha256(binary.read_bytes()).hexdigest(), "system": platform.system(), "machine": platform.machine()}
+    record = {"version": version, "contract_sha256": contract_hash, "sha256": hashlib.sha256(binary.read_bytes()).hexdigest(), "system": platform.system(), "machine": platform.machine()}
     (output_dir / "runtime.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     return 0
 

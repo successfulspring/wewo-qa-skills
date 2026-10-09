@@ -14,6 +14,7 @@ from artifact_tools import (
     ValidationFailure, sha256_file, validate_manifest_data, validate_manifest_file,
     write_bytes_atomic, write_text_atomic,
 )
+from artifact_layout import SUITES, case_workbook_path
 from xlsx_support import add_table, load_case_excel, read_table, text_cell, workbook_bytes
 
 
@@ -25,7 +26,7 @@ AUTOMATION_HEADERS = ["用例编号", "目标编号", "可行性", "执行路线
 RUNTIME_HEADERS = ["条件编号", "名称", "类型", "范围", "目标编号", "描述", "敏感", "提供方式", "备注"]
 FEASIBILITY = {"automatable": "可自动化", "conditional": "有条件自动化", "manual": "人工执行"}
 RISK = {"high": "高", "medium": "中", "low": "低"}
-FORMAT_VERSION = "1.2"
+FORMAT_VERSION = "1.3"
 COMPARISONS = {"equals":"相等", "contains":"包含文本", "number-equals":"数值相等", "number-delta":"数值变化", "unordered-equals":"列表相等(忽略顺序)", "unchanged":"前后不变", "evidence-review":"证据评判"}
 VALUE_TYPES = ["文本", "数值", "布尔", "列表", "对象", "空值", "不适用"]
 
@@ -118,7 +119,7 @@ def module_paths(test_points: dict[str, Any] | None) -> dict[str, str]:
     return result
 
 
-def render_case_workbook(manifest: dict[str, Any], manifest_sha256: str, paths: dict[str, str] | None, context: dict[str, Any]) -> bytes:
+def render_case_workbook(manifest: dict[str, Any], manifest_sha256: str, paths: dict[str, str] | None, context: dict[str, Any], suite: str = "full") -> bytes:
     validate_manifest_data(manifest)
     from design_context import validate_design_context_data
     validate_design_context_data(context)
@@ -127,6 +128,8 @@ def render_case_workbook(manifest: dict[str, Any], manifest_sha256: str, paths: 
     workbook.remove(workbook.active)
     case_rows, assertion_rows, automation_rows = [], [], []
     for case in manifest["cases"]:
+        if suite not in case["suite_membership"]:
+            continue
         summary = _lines([a["target_id"] + ": " + FEASIBILITY[a["feasibility"]] for a in case["automation"]])
         case_rows.append([
             case["id"], _lines(list(dict.fromkeys(paths.get(p, "") for p in case["test_point_refs"]))), case["title"], case["priority"], RISK[case["risk"]],
@@ -163,7 +166,7 @@ def render_case_workbook(manifest: dict[str, Any], manifest_sha256: str, paths: 
     add_table(workbook, "设计复查", REVIEW_HEADERS, reviews, {"发现":55,"解决记录":65})
     add_table(workbook, "使用说明", ["项目", "说明"], [
         ["项目", manifest["project"]["name"]],
-        ["筛选", "在测试用例表按冒烟、回归、适用目标、优先级筛选；全量包含所有用例。"],
+        ["用例集", {"smoke":"冒烟", "regression":"回归", "full":"全量"}[suite] + "用例文件；共享同一基线编号。"],
         ["可编辑", "编辑用例业务字段、必检断言、各目标自动化评估和运行条件。模块路径和主表自动化摘要由基线生成，请在对应明细表修改。"],
         ["步骤", "操作步骤、步骤预期、前置条件、测试数据、清理步骤和标签采用 1.、2. 连续编号；条目内换行缩进三个空格。必检断言的步骤序号指向操作编号。多个编号或引用逐行填写。"],
         ["判定", "步骤预期供阅读，必检断言是执行判定依据。修改任一预期后必须重新审查二者及测试点的一致性。"],
@@ -174,12 +177,14 @@ def render_case_workbook(manifest: dict[str, Any], manifest_sha256: str, paths: 
         ["运行条件", "此表仅定义需要什么；实际环境和安全会话引用在运行时收集。请勿填密码、令牌或登录 cookie。"],
         ["单元格", "长内容完整保存在单元格中，可在编辑栏查看；禁止在业务单元格使用公式。"],
     ], {"项目": 24, "说明": 110})
+    for sheet in ("设计依据", "设计复查", "运行条件"):
+        workbook[sheet].sheet_state = "hidden"
     metadata = workbook.create_sheet("_baseline")
     metadata.sheet_state = "veryHidden"
     payload = _canonical(manifest)
     path_payload = _canonical(paths)
     design_payload = _canonical({"设计依据":derivations, "设计复查":reviews})
-    metadata_rows = [["format", FORMAT_VERSION], ["manifest_sha256", manifest_sha256], ["payload_sha256", hashlib.sha256(payload.encode()).hexdigest()], ["paths_sha256", hashlib.sha256(path_payload.encode()).hexdigest()], ["design_sha256", hashlib.sha256(design_payload.encode()).hexdigest()]]
+    metadata_rows = [["format", FORMAT_VERSION], ["suite", suite], ["manifest_sha256", manifest_sha256], ["payload_sha256", hashlib.sha256(payload.encode()).hexdigest()], ["paths_sha256", hashlib.sha256(path_payload.encode()).hexdigest()], ["design_sha256", hashlib.sha256(design_payload.encode()).hexdigest()]]
     # JSON chunks retain non-editable source and project metadata losslessly.
     for i in range(0, len(payload), 30000):
         metadata_rows.append(["payload", payload[i:i+30000]])
@@ -209,6 +214,10 @@ def read_case_workbook(path: Path) -> tuple[dict[str, Any], dict[str, Any], str]
         if hashlib.sha256(payload.encode()).hexdigest() != values.get("payload_sha256"):
             raise ValidationFailure(["Excel baseline metadata was modified"])
         original = json.loads(payload)
+        suite = values.get("suite")
+        if suite not in SUITES:
+            raise ValidationFailure(["invalid workbook suite"])
+        visible_ids = {c["id"] for c in original["cases"] if suite in c["suite_membership"]}
         validate_manifest_data(original)
         path_payload = "".join(str(r[1]) for r in metadata if r[0] == "paths")
         if hashlib.sha256(path_payload.encode()).hexdigest() != values.get("paths_sha256"):
@@ -227,6 +236,8 @@ def read_case_workbook(path: Path) -> tuple[dict[str, Any], dict[str, Any], str]
         case_by_id = {}
         for row in read_table(workbook, "测试用例", CASE_HEADERS):
             cid = row["用例编号"]
+            if any(c["id"] == cid for c in original["cases"]) and cid not in visible_ids:
+                raise ValidationFailure([f"{cid}: belongs to another suite view"])
             if cid in case_by_id:
                 raise ValidationFailure([f"duplicate Excel case id: {cid}"])
             actions = _parse_numbered(row["操作步骤"], cid + "/操作步骤")
@@ -324,6 +335,7 @@ def read_case_workbook(path: Path) -> tuple[dict[str, Any], dict[str, Any], str]
                 if field in old and field not in requirement:
                     requirement[field] = [] if field == "target_ids" else ""
             candidate["runtime_requirements"].append(requirement)
+        candidate["cases"].extend(copy.deepcopy(c) for c in original["cases"] if c["id"] not in visible_ids)
         # Sorting rows in Excel is a view change, not a requirement change.
         def baseline_order(items, baseline, key):
             order = {item[key]: i for i, item in enumerate(baseline)}
@@ -363,38 +375,102 @@ def validate_case_workbook_file(workbook_path: Path, manifest_path: Path) -> Non
         raise ValidationFailure(["Excel has unreviewed edits; import-case-workbook, review, and rerender before execution"])
 
 
+def validate_case_workbooks(manifest_path):
+    for suite in SUITES:
+        validate_case_workbook_file(case_workbook_path(manifest_path, suite), manifest_path)
+        book = load_case_excel(case_workbook_path(manifest_path, suite))
+        try:
+            rows = list(book["_baseline"].iter_rows(values_only=True))
+            if dict((r[0], r[1]) for r in rows if r[0] == "suite").get("suite") != suite:
+                raise ValidationFailure(["workbook filename and suite metadata disagree"])
+        finally:
+            book.close()
+
+
+def render_case_workbooks(manifest_path):
+    from artifact_tools import validate_test_points_file
+    from design_context import validate_design_context_file
+    manifest = validate_manifest_file(manifest_path)
+    paths = module_paths(validate_test_points_file(manifest_path.with_name("test-points.json")))
+    context = validate_design_context_file(manifest_path.with_name("design-context.json"))
+    outputs = []
+    for suite in SUITES:
+        output = case_workbook_path(manifest_path, suite)
+        # Never discard edits to a workbook from this or an earlier baseline.
+        if output.exists():
+            candidate, original, _ = read_case_workbook(output)
+            if _canonical(candidate) != _canonical(original):
+                for field in ("cases", "runtime_requirements"):
+                    before = {x["id"]:x for x in original[field]}
+                    after = {x["id"]:x for x in candidate[field]}
+                    reviewed = {x["id"]:x for x in manifest[field]}
+                    if any(before.get(k) != after.get(k) and reviewed.get(k) != after.get(k) for k in set(before) | set(after)):
+                        raise ValidationFailure([str(output) + ": unreviewed edits; import and reconcile before exporting"])
+        outputs.append((output, render_case_workbook(manifest, sha256_file(manifest_path), paths, context, suite)))
+    for output, data in outputs:
+        write_bytes_atomic(output, data)
+    validate_case_workbooks(manifest_path)
+    return [p for p, _ in outputs]
+
+
+def import_case_workbooks(manifest_path):
+    manifest = validate_manifest_file(manifest_path)
+    merged = copy.deepcopy(manifest)
+    changes = {}
+    for suite in SUITES:
+        candidate, original, digest = read_case_workbook(case_workbook_path(manifest_path, suite))
+        if digest != sha256_file(manifest_path) or _canonical(original) != _canonical(manifest):
+            raise ValidationFailure(["stale suite workbook; reconcile its baseline before import"])
+        for field, key in [("cases", "id"), ("runtime_requirements", "id")]:
+            before = {x[key]:x for x in original[field]}
+            after = {x[key]:x for x in candidate[field]}
+            for ident in set(before) | set(after):
+                if before.get(ident) == after.get(ident):
+                    continue
+                marker = (field, ident)
+                value = after.get(ident)
+                if marker in changes and changes[marker] != value:
+                    raise ValidationFailure([f"conflicting edits across suite workbooks: {ident}"])
+                changes[marker] = value
+    for (field, ident), value in changes.items():
+        merged[field] = [x for x in merged[field] if x["id"] != ident]
+        if value is not None:
+            merged[field].append(value)
+    if changes:
+        merged["review"].update(status="pending", checks=[], notes="Suite workbook edits merged; semantic review is required.")
+        merged["review"].pop("reviewed_at", None)
+    validate_manifest_data(merged, final=not changes)
+    return merged
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Render, import, or validate the tester's case Excel workbook.")
+    parser = argparse.ArgumentParser(description="Export three suite files, validate all views, or reconcile Excel edits.")
     parser.add_argument("operation", choices=("render", "import", "validate"))
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--workbook", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     manifest_path = args.manifest.resolve()
-    workbook_path = (args.workbook or manifest_path.with_name("test-cases.xlsx")).resolve()
     try:
         if args.operation == "render":
-            manifest = validate_manifest_file(manifest_path)
-            from artifact_tools import validate_test_points_file
-            paths = module_paths(validate_test_points_file(manifest_path.with_name("test-points.json")))
-            from design_context import validate_design_context_file
-            context = validate_design_context_file(manifest_path.with_name("design-context.json"))
-            output = (args.output or workbook_path).resolve()
-            if output in {manifest_path, manifest_path.with_name("test-points.json"), manifest_path.with_name("design-context.json")}:
-                raise ValidationFailure(["workbook must not overwrite a design baseline"])
-            write_bytes_atomic(output, render_case_workbook(manifest, sha256_file(manifest_path), paths, context))
-            print(f"WROTE: {output}")
+            if args.output or args.workbook:
+                raise ValidationFailure(["render exports the three canonical suite files; no single-workbook output"])
+            for output in render_case_workbooks(manifest_path):
+                print(f"WROTE: {output}")
         elif args.operation == "validate":
-            validate_case_workbook_file(workbook_path, manifest_path)
-            print("OK: Excel matches the reviewed manifest")
+            validate_case_workbooks(manifest_path)
+            print("OK: all three Excel suite views match the reviewed manifest")
         else:
             manifest = validate_manifest_file(manifest_path)
-            candidate, original, digest = read_case_workbook(workbook_path)
-            if digest != sha256_file(manifest_path) or _canonical(original) != _canonical(manifest):
-                raise ValidationFailure(["Excel baseline is stale; reconcile against the current manifest before import"])
+            if args.workbook:
+                candidate, original, digest = read_case_workbook(args.workbook.resolve())
+                if digest != sha256_file(manifest_path) or _canonical(original) != _canonical(manifest):
+                    raise ValidationFailure(["stale workbook baseline"])
+            else:
+                candidate = import_case_workbooks(manifest_path)
             output = (args.output or manifest_path.with_name("test-manifest.pending.json")).resolve()
-            if output in {manifest_path, workbook_path, manifest_path.with_name("test-points.json"), manifest_path.with_name("design-context.json")}:
-                raise ValidationFailure(["import output must not overwrite a confirmed baseline or workbook"])
+            if output in {manifest_path, manifest_path.with_name("test-points.json"), manifest_path.with_name("design-context.json")} or output.suffix != ".json":
+                raise ValidationFailure(["import must write separate pending JSON state"])
             write_text_atomic(output, json.dumps(candidate, ensure_ascii=False, indent=2) + "\n")
             print(f"WROTE: {output}; review={candidate['review']['status']}")
     except (ValidationFailure, OSError) as exc:

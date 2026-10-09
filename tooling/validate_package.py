@@ -22,6 +22,7 @@ EXPECTED_SKILL_RESOURCES = {
         Path("references/schemas/test-points.schema.json"),
         Path("references/schemas/design-context.schema.json"),
         Path("scripts/case_workbook.py"),
+        Path("scripts/deliverables.py"),
         Path("scripts/design_context.py"),
         Path("scripts/design_methods.py"),
         Path("references/method-records.md"),
@@ -38,6 +39,9 @@ EXPECTED_SKILL_RESOURCES = {
         Path("scripts/validate_execution_profile.py"),
         Path("scripts/validate_execution_results.py"),
         Path("scripts/observation_checks.py"),
+        Path("scripts/native_execution.py"),
+        Path("references/native-automation.md"),
+        Path("references/schemas/native-plan.schema.json"),
         Path("scripts/judge_execution_results.py"),
         Path("references/schemas/ui-observation.schema.json"),
         Path("references/observation-evidence.md"),
@@ -185,6 +189,9 @@ def validate_links(errors: list[str]) -> None:
 
 
 def validate_runtimes(errors: list[str], release: bool = False) -> list[str]:
+    sys.path.insert(0, str(ROOT / "tooling/runtime"))
+    from runtime_contract import contract_digest
+    contract_hash = contract_digest(ROOT)
     pending = []
     version = json.loads((ROOT / MANIFESTS[0]).read_text(encoding="utf-8"))["version"]
     for relative in RUNTIMES:
@@ -195,7 +202,7 @@ def validate_runtimes(errors: list[str], release: bool = False) -> list[str]:
             errors.append(f"bundled runtime is unexpectedly small: {relative}")
         record_path = path.parent / "runtime.json"
         record = load_json(record_path, errors) if record_path.is_file() else {}
-        if record.get("version") != version or not path.is_file() or record.get("sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
+        if record.get("version") != version or record.get("contract_sha256") != contract_hash or not path.is_file() or record.get("sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
             pending.append(str(relative))
     if release and pending:
         errors.append("release requires rebuilt version/hash-matched runtimes: " + ", ".join(pending))

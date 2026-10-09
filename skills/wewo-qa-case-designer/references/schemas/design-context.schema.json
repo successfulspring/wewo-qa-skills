@@ -3,7 +3,7 @@
   "additionalProperties": false,
   "properties": {
     "schema_version": {
-      "const": "1.1"
+      "const": "1.2"
     },
     "generated_at": {
       "type": "string",
@@ -197,6 +197,37 @@
       "required": [
         "status"
       ]
+    },
+    "requirement_confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "draft",
+            "confirmed"
+          ]
+        },
+        "confirmed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "response_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "response_text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshot_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
     }
   },
   "required": [
@@ -211,7 +242,8 @@
     "flows",
     "rules",
     "open_questions",
-    "review"
+    "review",
+    "requirement_confirmation"
   ],
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Wewo QA Design Context",

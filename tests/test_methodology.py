@@ -78,6 +78,8 @@ class DerivationTests(unittest.TestCase):
         context = model_context("state-transition", [{"from":s,"event":e,"to":s} for s in ["draft","submitted"] for e in ["submit","delete"]], object_ref="OBJ-ORDER", states=["draft","submitted"], events=["submit","delete"])
         context["objects"] = [{"id":"OBJ-ORDER","title":"Order","description":"Synthetic order states","states":["draft","submitted"],"segment_refs":["SEG-001-001"]}]
         context["rules"][0].update(kind="transition",object_refs=["OBJ-ORDER"])
+        from design_context import requirement_digest
+        context["requirement_confirmation"]["snapshot_sha256"] = requirement_digest(context)
         validate_design_context_data(context)
 
     def test_role_matrix_checks_denied_pairs(self):
@@ -238,7 +240,7 @@ class ObservationTests(unittest.TestCase):
             self.validate()
 
     def test_generated_excel_derivation_changes_are_not_silently_discarded(self):
-        path = self.directory / "test-cases.xlsx"
+        path = self.directory / "test-cases.full.xlsx"
         workbook = load_workbook(path)
         workbook["设计依据"]["J2"] = "Tester found a different expected outcome"
         workbook.save(path)
@@ -247,7 +249,7 @@ class ObservationTests(unittest.TestCase):
             read_case_workbook(path)
 
     def test_comparison_edit_is_preserved_and_requires_review(self):
-        path = self.directory / "test-cases.xlsx"
+        path = self.directory / "test-cases.full.xlsx"
         workbook = load_workbook(path)
         workbook["必检断言"]["L2"] = "New source-confirmed value"
         workbook.save(path)

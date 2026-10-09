@@ -14,6 +14,7 @@ from artifact_tools import (
     validate_manifest_file,
     write_text_atomic,
 )
+from artifact_layout import case_workbook_path
 import json
 
 
@@ -30,7 +31,7 @@ def build_profile(
         "schema_version": "1.1",
         "manifest_path": relative_manifest,
         "manifest_sha256": sha256_file(manifest_path),
-        "case_workbook_sha256": sha256_file(manifest_path.parent / "test-cases.xlsx"),
+        "case_workbook_sha256": sha256_file(case_workbook_path(manifest_path, suite)),
         "suite": suite,
         "targets": targets,
         "collected_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -55,8 +56,8 @@ def main() -> int:
     output_path = args.output.resolve()
     try:
         manifest = validate_manifest_file(manifest_path)
-        from case_workbook import validate_case_workbook_file
-        validate_case_workbook_file(manifest_path.parent / "test-cases.xlsx", manifest_path)
+        from case_workbook import validate_case_workbooks
+        validate_case_workbooks(manifest_path)
         profile = build_profile(manifest, manifest_path, output_path, args.suite, args.targets)
     except ValidationFailure as exc:
         for error in exc.errors:

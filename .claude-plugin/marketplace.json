@@ -13,7 +13,7 @@
         "source": "url",
         "url": "https://github.com/successfulspring/wewo-qa-skills.git"
       },
-      "description": "Understand business dependencies, confirm atomic XMind points, generate editable Excel black-box cases with planned assertions, and execute automatable cases with an Excel evidence report.",
+      "description": "Clarify and confirm requirements, deliver XMind and three Excel suites, then generate and run project-native acceptance tests with evidence.",
       "homepage": "https://github.com/successfulspring/wewo-qa-skills"
     }
   ]

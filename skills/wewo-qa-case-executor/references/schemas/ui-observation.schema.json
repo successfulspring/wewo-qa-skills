@@ -15,7 +15,10 @@
   ],
   "properties": {
     "format": {
-      "const": "wewo-qa-ui-observation/1"
+      "enum": [
+        "wewo-qa-ui-observation/1",
+        "wewo-qa-native-observation/1"
+      ]
     },
     "attempt": {
       "type": "integer",
@@ -49,6 +52,59 @@
     "tool": {
       "type": "string",
       "minLength": 1
+    },
+    "native": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_path",
+        "receipt_sha256",
+        "line",
+        "phase"
+      ],
+      "properties": {
+        "receipt_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "receipt_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "phase": {
+          "enum": [
+            "before",
+            "after"
+          ]
+        }
+      }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "format": {
+            "const": "wewo-qa-native-observation/1"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "native"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "native"
+          ]
+        }
+      }
+    }
+  ]
 }

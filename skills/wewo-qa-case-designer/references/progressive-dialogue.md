@@ -1,6 +1,6 @@
 # Progressive requirement dialogue
 
-Use this procedure for every requirement unit. The goal is for the tester and the agent to build the same understanding while producing the test-point tree.
+Use this procedure for every requirement unit. The goal is for the tester and the agent to build the same understanding before producing test artifacts.
 
 ## One conversational round
 
@@ -9,7 +9,7 @@ Present these sections in order:
 1. **Source slice** — identify the source anchor and summarize only the current unit.
 2. **Plain-language explanation** — explain the user-visible flow and why it matters without assuming product knowledge.
 3. **Current understanding** — separate explicit facts from interpretations. Identify actors, preconditions, triggers, rules, state changes, visible outcomes, and applicable targets.
-4. **Proposed test-point delta** — show the small branch being added or changed, not the entire map on every turn.
+4. **Business understanding delta** — show changed rules and cross-module effects, without generating test artifacts.
 5. **Clarification batch** — ask the related questions that materially affect this unit.
 
 Wait for the batch response. Then present:
@@ -17,7 +17,7 @@ Wait for the batch response. Then present:
 - decisions confirmed or corrected;
 - assumptions the user explicitly accepted;
 - unanswered or contradictory items;
-- test points added, changed, removed, or split;
+- business rules and dependencies added, changed or reopened;
 - the next unit only after the current unit is closed.
 
 ## Batch construction
@@ -65,16 +65,16 @@ Accept compact replies such as `Q1-B，Q2-A+C` and free-form corrections. A free
 
 ## Module checkpoint
 
-At the end of a module, show its accumulated test-point branch and a compact status table:
+At the end of a module, show its consolidated business understanding and a compact status table:
 
 | 项目 | 状态 |
 | --- | --- |
 | 来源事实 | 已确认/有冲突 |
 | 澄清问题 | 已回答/待回答 |
 | 假设 | 无/已披露 |
-| 测试点分支 | 待确认/已确认 |
+| 业务理解 | 已理解/待澄清 |
 
-The user may approve the whole module, correct individual items, or provide new information. Module confirmation is not the same as final XMind confirmation.
+The user may approve the whole module, correct individual items, or provide new information. Module confirmation is not the final requirement confirmation. After all modules, present the consolidated final requirements, ask for explicit confirmation, preserve the actual response/ref/digest, and only then derive XMind points.
 
 ## Persistent understanding
 
@@ -82,4 +82,4 @@ Maintain unit status/understanding in `test-points.json`; preserve decisions wit
 
 The whole-business draft establishes dependencies before these rounds. A changed answer may reopen a rule in another module; show the downstream branch changes. Do not ask for an answer to a rule already explicit in a readable source. A module checkpoint is a correction opportunity, while the final XMind baseline needs explicit confirmation.
 
-When a visual branch will help review, render the current known tree using `render-test-points-xmind --draft`; never mark the context confirmed just to render a draft. Keep unanswered material facts in `open_questions` and omit speculative final expectations.
+Do not use test-point rendering to bypass requirement dialogue. Final requirements, XMind review and case review are distinct states. Keep unanswered material facts in `open_questions`; silence and generated notes never constitute confirmation.
