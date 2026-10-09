@@ -1,7 +1,7 @@
 {
   "version": "0.2.0",
-  "contract_sha256": "6605f58c70c4d6ca51f62e9e29e790de6b0653b351ece6a5b572204cd41390ea",
-  "sha256": "f91824708d3e51a159808f33a432001b6381927fb300b63341b450728db9a384",
+  "contract_sha256": "123f99cf3d31464cdadbe851e86525890651ef1898e8da1cd27bba8b9ea1bc21",
+  "sha256": "ea7e5a48e4f6d61dd8911ab6f47ce049bb9e0b32647565a7682c333731ae3033",
   "system": "Linux",
   "machine": "x86_64"
 }
