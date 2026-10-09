@@ -4,7 +4,7 @@
 
 Read task-relevant source, existing test paths/config/scripts, fixtures/page objects and lockfiles. Verify deployed build alignment. Reuse the established Playwright Test, Cypress, pytest, mobile/desktop framework or other appropriate runner; language alone is not a selection rule. Keep UI-visible business assertions in UI tests. API acceptance is suitable only for interface-defined behavior or supported setup/checks that preserve the case's evidence. Do not replace an end-to-end flow with mocked unit tests.
 
-Generated code lives in normal project test paths and includes stable case/AS identifiers. Reuse helpers, deterministic waits, independent data and cleanup. Source code is read-only except test assets/config. Product defects remain reported defects. Current case oracles stay frozen even if the implementation does something else.
+Generated code lives in normal project test paths and includes stable case/AS identifiers. For a case spanning multiple confirmed leaves, bind every planned `AS-*` to the exact post-step observation for that leaf, including related-object changes and unchanged invariants; a single final success check does not replace them. Reuse helpers, deterministic waits, independent data and cleanup. Source code is read-only except test assets/config. Product defects remain reported defects. Current case oracles stay frozen even if the implementation does something else.
 
 ## Plan and evidence
 

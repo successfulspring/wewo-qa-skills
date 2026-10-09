@@ -4,9 +4,9 @@ Use `schemas/design-context.schema.json`. This model preserves why the test tree
 
 ## Build a whole-business draft first
 
-Describe business objects and states, actor roles, the main end-to-end flow, ownership and cross-object dependencies. Include existing behavior that this change relies on or can affect. Ground it in readable requirements, prototypes, existing business documentation and tester or product-owner confirmations. Mark unknowns instead of guessing conventional rules.
+Describe the goal, in/out scope and existing context, then business objects and their identifiers/states, actor roles and ownership/data scope, the main end-to-end flow with alternative and failure paths, and cross-object dependencies. For each important operation, trace input and prior state → actor/trigger → changed object/state/data → downstream consumer and observable location → invariants that must remain unchanged. Include existing behavior that this change relies on or can affect. Ground each link in readable requirements, prototypes, existing business documentation and tester or product-owner confirmations. Mark unknown links rather than guessing conventional rules. A document's page/menu headings are source anchors, not the only business decomposition.
 
-Then refine coherent units in dependency order. When a unit changes a rule, revisit upstream prerequisites and downstream effects in the map. An unchanged page can still need regression when its data, permissions or states change.
+Then refine coherent units in dependency order: shared object/state/permission rules before the operations that consume them, and upstream changes before downstream outcomes. When a unit changes a shared rule, revisit every related `relationship`, `flow` and dependent rule, including rejection invariants and existing paths. An unchanged page can still need regression when its data, permissions or states change. Use `objects`, `relationships`, `flows` and `rules` for this trace; do not create a parallel business-map file.
 
 Pure project context belongs in source segments/objects/relationships, with its reading disposition and note; it does not require a fabricated standalone test leaf. Requirement units describe testable behavior and may cite that context. A source section title alone is not a requirement unit with coverage obligations.
 

@@ -1,6 +1,6 @@
 # Progressive requirement dialogue
 
-Use this procedure for every requirement unit. The goal is for the tester and the agent to build the same understanding before producing test artifacts.
+Use this procedure for every requirement unit after building the whole-business draft in [design context](design-context.md). Order units by shared prerequisites and object/flow dependencies, not only by document or page order. The goal is for the tester and the agent to build the same understanding before producing test artifacts.
 
 ## One conversational round
 
@@ -9,7 +9,7 @@ Present these sections in order:
 1. **Source slice** — identify the source anchor and summarize only the current unit.
 2. **Plain-language explanation** — explain the user-visible flow and why it matters without assuming product knowledge.
 3. **Current understanding** — separate explicit facts from interpretations. Identify actors, preconditions, triggers, rules, state changes, visible outcomes, and applicable targets.
-4. **Business understanding delta** — show changed rules and cross-module effects, without generating test artifacts.
+4. **Business understanding delta** — show changed rules; affected objects, states and data; upstream prerequisites; downstream modules and existing flows; and what must stay unchanged. Name the source or decision supporting each effect. Do not generate test artifacts here.
 5. **Clarification batch** — ask the related questions that materially affect this unit.
 
 Wait for the batch response. Then present:
@@ -26,6 +26,7 @@ Wait for the batch response. Then present:
 - Default to 3–6 material questions when available. If fewer exist, ask fewer; never create filler questions. Do not send serial one-question turns when several related unknowns are already known.
 - Cover both understanding and ambiguity: the user may correct stated facts as well as choose resolutions for missing rules.
 - Do not ask the user to rediscover facts already explicit in the source. Present those as current understanding and make correction easy.
+- Ask about a common rule once, then show where the answer propagates. If its answer changes a previously discussed module, reopen that module's affected facts and obtain the needed correction before final confirmation.
 - Split a large unit before sending a long questionnaire.
 
 ## Question contract
@@ -80,6 +81,6 @@ The user may approve the whole module, correct individual items, or provide new 
 
 Maintain unit status/understanding in `test-points.json`; preserve decisions with question ID, selected options/free-text resolution, rationale and impacted rule/point IDs in the business model. Keep accepted assumptions and remaining material questions visible. Do not require a separate Markdown walkthrough.
 
-The whole-business draft establishes dependencies before these rounds. A changed answer may reopen a rule in another module; show the downstream branch changes. Do not ask for an answer to a rule already explicit in a readable source. A module checkpoint is a correction opportunity, while the final XMind baseline needs explicit confirmation.
+The whole-business draft establishes dependencies before these rounds. A changed answer may reopen a rule in another module; show the downstream rule/flow/relationship changes before any test-point revision. Do not ask for an answer to a rule already explicit in a readable source. Historical decisions are leads only: compare project, version, object, scope and original authority; similar wording or a remembered formatting preference cannot confirm today's business rule. A module checkpoint is a correction opportunity, while the final requirement summary and later XMind baseline each need their own explicit confirmation.
 
 Do not use test-point rendering to bypass requirement dialogue. Final requirements, XMind review and case review are distinct states. Keep unanswered material facts in `open_questions`; silence and generated notes never constitute confirmation.

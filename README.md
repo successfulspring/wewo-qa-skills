@@ -57,10 +57,31 @@ skills/   两个 Skill 的规范、资源和构建输入；共同运行说明只
 bin/      各系统已验证的运行工具
 tooling/  构建、校验、打包及共享运行源码
 tests/    工具回归测试和合成夹具
-docs/     开发、版本历史和来源说明
 .github/  构建与分发流程
 ```
 
-[开发与验证](docs/development.md) · [版本历史](docs/CHANGELOG.md) · [开源来源](docs/OPEN_SOURCE_FOUNDATIONS.md)
+`skills/` 是唯一规范源，安装包从它生成。源码和工具测试供维护者使用，构建临时文件位于系统临时目录。版本变更通过 Git 历史查看。
 
-`skills/` 是唯一规范源，安装包从它生成。历史记录和开发说明不参与日常 Skill 使用，构建临时文件位于系统临时目录。
+维护者使用 Python 3.12，安装依赖后验证仓库：
+
+```text
+python -m pip install -r tooling/requirements-dev.txt
+python -B -m unittest discover -s tests
+python -B tooling/validate_package.py --release
+claude plugin validate .claude-plugin/plugin.json
+claude plugin validate .claude-plugin/marketplace.json --strict
+```
+
+如宿主提供 Skill 校验器，再分别校验两个 `SKILL.md`。根目录 `CLAUDE.md` 是维护上下文，Claude 插件校验可能提示它不作为安装插件的项目上下文加载。
+
+修改运行源码后，在对应系统重建、运行冒烟检查并打包：
+
+```text
+python -B tooling/build_runtime.py --output-dir bin/<host-target>
+python -B tooling/smoke_runtime.py --runtime bin/<host-target>/wewo-qa
+python -B tooling/package_plugin.py --target <host-target> --output <outside-repository>/wewo-qa-skills.zip
+```
+
+目标为 `windows-x64`、`linux-x64`、`macos-arm64`、`macos-x64`；Windows 文件名为 `wewo-qa.exe`。发布校验检查四个平台的版本、源码契约和文件哈希；CI 负责四平台构建、冒烟、打包及发布一致性检查。
+
+工具校验通过只说明产物和执行证据符合约束，业务理解及覆盖仍需测试人员确认。第三方声明随运行工具分发；公司产物、凭据和登录态不提交到仓库。仅在用户明确要求上传当前修改时推送 GitHub。
