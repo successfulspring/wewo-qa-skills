@@ -16,7 +16,7 @@ Consume the confirmed XMind/Excel baseline, inspect the actual project code and 
 
 ## Workflow
 
-1. Resolve the [bundled runtime](references/runtime-tool.md). Validate the requirement/point/case baselines and **all three Excel views**, then select the requested suite and targets. Import and review any Excel edits before running.
+1. Resolve the [bundled runtime](../runtime-tool.md). Validate the requirement/point/case baselines and **all three Excel views**, then select the requested suite and targets. Import and review any Excel edits before running.
 2. Inspect the actual product repository: applicable instructions, revision, relevant implementation, existing tests, dependency manifests/lockfiles, scripts/config, fixtures, helpers, reporters and deployment context. Verify that the inspected code and test environment correspond to the intended build. Ask once for remaining missing repository/environment/account/data inputs; continue independent readiness checks. Product code is required for this requested code-generation route, not for the Designer.
 3. Prepare/freeze the [execution profile](references/execution-policy.md), reviewed manifest and selected suite workbook. Resolve safe data preparation, isolation/reset, credentials by safe references and cleanup. Execute ready non-manual pairs; retain concrete blockers for other pairs.
 4. Map each case-target and every `AS-*` assertion to a real test asset, native test identifier, route and runner. Reuse or extend suitable existing tests; otherwise write the minimal durable code in the project's normal test directories. Do not put automation source in the tester delivery root. Reuse mature frameworks instead of building a custom test runner. Read [native automation](references/native-automation.md).

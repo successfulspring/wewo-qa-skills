@@ -25,19 +25,17 @@ EXPECTED_SKILL_RESOURCES = {
         Path("scripts/deliverables.py"),
         Path("scripts/design_context.py"),
         Path("scripts/design_methods.py"),
-        Path("references/method-records.md"),
+        Path("references/test-design.md"),
         Path("scripts/extract_source.py"),
         Path("scripts/render_test_points_xmind.py"),
-        Path("scripts/validate_test_manifest.py"),
-        Path("scripts/validate_test_points.py"),
+        Path("scripts/design_validation.py"),
     },
     "wewo-qa-case-executor": {
         Path("references/schemas/execution-profile.schema.json"),
         Path("references/schemas/execution-results.schema.json"),
         Path("scripts/prepare_execution_profile.py"),
         Path("scripts/render_execution_report.py"),
-        Path("scripts/validate_execution_profile.py"),
-        Path("scripts/validate_execution_results.py"),
+        Path("scripts/execution_validation.py"),
         Path("scripts/observation_checks.py"),
         Path("scripts/native_execution.py"),
         Path("references/native-automation.md"),
@@ -145,6 +143,8 @@ def parse_frontmatter(path: Path, errors: list[str]) -> dict[str, str]:
 
 def validate_skills(errors: list[str]) -> None:
     skills_root = ROOT / "skills"
+    if not (skills_root / "runtime-tool.md").is_file():
+        errors.append("missing shared skills/runtime-tool.md")
     actual = {path.name for path in skills_root.iterdir() if path.is_dir()}
     if actual != EXPECTED_SKILLS:
         errors.append(f"skills/: expected {sorted(EXPECTED_SKILLS)}, got {sorted(actual)}")

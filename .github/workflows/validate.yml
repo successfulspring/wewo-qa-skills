@@ -1,8 +1,12 @@
-name: Validate plugin
+name: Validate and package plugin
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
   package:
@@ -51,6 +55,13 @@ jobs:
           name: ${{ matrix.target }}
           path: bin/${{ matrix.target }}/
           if-no-files-found: error
+      - name: Package runtime-only plugin
+        run: python tooling/package_plugin.py --target ${{ matrix.target }} --output "${{ runner.temp }}/wewo-qa-skills-${{ matrix.target }}.zip"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: plugin-${{ matrix.target }}
+          path: ${{ runner.temp }}/wewo-qa-skills-${{ matrix.target }}.zip
+          if-no-files-found: error
 
   release-contract:
     needs: [package, runtime-smoke]
@@ -62,5 +73,18 @@ jobs:
           python-version: "3.12"
       - uses: actions/download-artifact@v4
         with:
-          path: bin
+          name: windows-x64
+          path: bin/windows-x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-x64
+          path: bin/linux-x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-arm64
+          path: bin/macos-arm64
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-x64
+          path: bin/macos-x64
       - run: python tooling/validate_package.py --release

@@ -22,10 +22,8 @@ import native_execution
 import deliverables
 import render_execution_report
 import render_test_points_xmind
-import validate_execution_profile
-import validate_execution_results
-import validate_test_manifest
-import validate_test_points
+import design_validation
+import execution_validation
 from runtime_version import VERSION
 
 
@@ -33,15 +31,15 @@ COMMANDS = {
     "extract-source": extract_source.main,
     "validate-design-context": design_context.main,
     "requirement-digest": design_context.digest_main,
-    "validate-test-points": validate_test_points.main,
+    "validate-test-points": design_validation.points_main,
     "render-test-points-xmind": render_test_points_xmind.main,
-    "validate-test-manifest": validate_test_manifest.main,
+    "validate-test-manifest": design_validation.manifest_main,
     "render-case-workbook": case_workbook.render_main,
     "import-case-workbook": case_workbook.import_main,
     "validate-case-workbook": case_workbook.validate_main,
     "prepare-execution-profile": prepare_execution_profile.main,
-    "validate-execution-profile": validate_execution_profile.main,
-    "validate-execution-results": validate_execution_results.main,
+    "validate-execution-profile": execution_validation.profile_main,
+    "validate-execution-results": execution_validation.results_main,
     "judge-execution-results": judge_execution_results.main,
     "render-execution-report": render_execution_report.main,
     "run-native-tests": native_execution.main,

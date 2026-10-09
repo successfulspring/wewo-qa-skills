@@ -26,7 +26,7 @@ Define expected results from confirmed rules before execution. Use business-visi
 - `objects`: `OBJ-*`, description, states and grounded segment references. Include explicit roles in applicable rule conditions.
 - `relationships`: `REL-*`, from/to objects, meaning and rule references. These describe actual business effects, not merely links between pages.
 - `flows`: `FLOW-*`, ordered rule references and a visible business outcome.
-- `rules`: `RULE-*`, condition, action, expected outcome, objects, source segment or decision references, confirmed/assumed/excluded status, optional state transition, coverage disposition and concrete `design_models` from [method records](method-records.md).
+- `rules`: `RULE-*`, condition, action, expected outcome, objects, source segment or decision references, confirmed/assumed/excluded status, optional state transition, coverage disposition and concrete `design_models` from [concrete derivations](test-design.md#concrete-derivation-records).
 - `open_questions`: describe material unresolved facts. A final model cannot have an unresolved material question.
 - `review`: draft/confirmed, confirmation timestamp, performed checks, findings and resolutions for the completed model.
 

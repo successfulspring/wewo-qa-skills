@@ -8,6 +8,7 @@ import hashlib
 import json
 import platform
 import sys
+import tempfile
 from pathlib import Path
 
 import PyInstaller.__main__
@@ -21,7 +22,14 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
     version = json.loads((repo_root / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))["version"]
     output_dir = args.output_dir.resolve()
-    work_dir = repo_root / ".tmp-pyinstaller"
+    with tempfile.TemporaryDirectory(prefix="wewo-qa-build-") as temporary:
+        work_dir = Path(temporary).resolve()
+        if not work_dir.is_relative_to(Path(tempfile.gettempdir()).resolve()):
+            raise ValueError("build workspace must stay inside the system temporary directory")
+        return build(repo_root, output_dir, work_dir, version)
+
+
+def build(repo_root, output_dir, work_dir, version):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     runtime_sources = repo_root / "tooling" / "runtime"

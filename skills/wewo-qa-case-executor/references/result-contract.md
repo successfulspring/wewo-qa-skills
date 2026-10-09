@@ -25,16 +25,16 @@ A case is `passed` only if all planned target assertions pass and case-level req
 
 ## Report
 
-Excel sheets contain execution summary, one row per selected case-target, all planned assertion results (including unchecked), and a linked evidence index. The summary includes the automatic gate, counts and evaluated/required assertion ratio. Gate values are `PASSED`, `FAILED`, `INCOMPLETE`, or `NO_AUTOMATABLE_CASES`. Manual scope remains visible and is excluded only from the automatic gate.
+Excel sheets contain execution summary, one row per selected case-target, all planned assertion results (including unchecked), and a linked evidence index. The summary includes the automatic gate, counts and evaluated/required assertion ratio. Gate values are `PASSED`, `FAILED`, `INCOMPLETE`, `NO_CODE_EXECUTION`, or `NO_AUTOMATABLE_CASES`. Manual scope remains visible and is excluded only from the automatic gate.
 
 ```text
 <qa-tool> validate-execution-results <run-dir>/execution-results.json <public-root>/.qa-state/test-manifest.json
-<qa-tool> render-execution-report <run-dir>/execution-results.json <public-root>/.qa-state/test-manifest.json
+<qa-tool> render-execution-report <run-dir>/execution-results.judged.json <public-root>/.qa-state/test-manifest.json --output <public-root>/test-execution-report.xlsx
 ```
 
 The renderer validates first. Correct structured records using actual execution evidence; never edit the report to hide a failed gate. JSON validation cannot establish that a UI action happened or that a screenshot proves the declared actual result; the execution agent must read the evidence and compare it to each frozen assertion.
 
-After collecting real observations, `<qa-tool> judge-execution-results <run-dir>/execution-results.json <public-root>/.qa-state/test-manifest.json` derives deterministic verdicts and observed actual values into `execution-results.judged.json`. Use that file in the validation/render commands above. Evidence-review verdicts use explicitly reasoned judgments; missing/invalid evidence causes an error, not a fabricated pass. The Excel report shows comparison/timing, per-attempt pointers, review reasons and evidence hashes.
+After collecting real observations, `<qa-tool> judge-execution-results <run-dir>/execution-results.json <public-root>/.qa-state/test-manifest.json` derives deterministic verdicts and observed actual values into `execution-results.judged.json`. Use that file in the validation/render commands above. Judging rejects an existing output; `--output` selects another separate JSON filename in the same run. It never creates observations or changes a frozen check. Evidence-review verdicts use explicitly reasoned judgments; missing/invalid evidence causes an error, not a fabricated pass. The Excel report shows comparison/timing, per-attempt pointers, review reasons and evidence hashes.
 
 ## Generated-code execution
 
