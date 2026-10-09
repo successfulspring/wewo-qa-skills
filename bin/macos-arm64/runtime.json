@@ -1,6 +1,7 @@
 {
   "version": "0.2.0",
-  "sha256": "76bd6761cd06ad86f62ec199a86b1d7216bba8c346ea1e809c047276715d7887",
+  "contract_sha256": "6605f58c70c4d6ca51f62e9e29e790de6b0653b351ece6a5b572204cd41390ea",
+  "sha256": "99793f6cb1965ee79a85c13c00fa8f8e7eca2478e44b22cc3f3760d12ef9dc23",
   "system": "Darwin",
   "machine": "arm64"
 }
