@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT/"tooling/runtime"),str(ROOT/"skills/wewo-qa-case-designer/scripts"),str(ROOT/"skills/wewo-qa-case-executor/scripts"),str(ROOT/"tests")]
-from artifact_factory import artifact_set, execution_set, write_json, seal_synthetic_cases
+from artifact_factory import artifact_set, execution_set, write_json, seal_synthetic_cases, seal_synthetic_profile
 from artifact_tools import ValidationFailure, sha256_file, validate_results_file
 from case_workbook import render_case_workbooks, read_case_workbook, import_case_workbooks, validate_case_workbooks
 from design_context import validate_design_context_data
@@ -102,9 +102,17 @@ class NativeRunnerTests(unittest.TestCase):
 from pathlib import Path
 data=json.loads(Path("fixture-events.json").read_text())
 rows=[]
+profile=json.loads(Path(os.environ["WEWO_QA_PROFILE_FILE"]).read_text())
+env=profile["environments"][0]
+identity={"run_id":os.environ["WEWO_QA_RUN_ID"],"case_id":data["events"][0]["case_id"] if data["events"] else "TC-001","target_id":"web-chrome","test_id":"Synthetic::acceptance","attempt":1,"event":"lifecycle"}
+for phase in ("environment","preparation"):
+ event={**identity,"phase":phase,"status":"passed","detail":"Synthetic plumbing only","captured_at":datetime.datetime.now(datetime.timezone.utc).isoformat()}
+ if phase=="environment": event.update(entry=env["entry"],build=env["build"])
+ rows.append(json.dumps(event))
 for event in data["events"]:
  event.update(run_id=os.environ["WEWO_QA_RUN_ID"],captured_at=datetime.datetime.now(datetime.timezone.utc).isoformat())
  rows.append(json.dumps(event,ensure_ascii=False))
+rows.append(json.dumps({**identity,"phase":"cleanup","status":data.get("cleanup_status","passed"),"detail":"Synthetic cleanup fixture","captured_at":datetime.datetime.now(datetime.timezone.utc).isoformat()}))
 Path(os.environ["WEWO_QA_OBSERVATIONS_FILE"]).write_text("\\n".join(rows)+"\\n",encoding="utf8")
 Path(os.environ["WEWO_QA_REPORT_FILE"]).write_text(data["report"],encoding="utf8")
 print("Synthetic runner actually executed")
@@ -124,15 +132,19 @@ sys.exit(data["exit_code"])
             if req["sensitive"]:
                 b.pop("value")
                 b.update(source="authenticated-session",session_ref="synthetic-session")
+        seal_synthetic_profile(self.profile, {"name":"Synthetic local test fixture","kind":"test","build":"fixture-v1"})
         write_json(self.profile_path,self.profile)
         self.events=[]
         for a in self.case["assertions"]:
             self.events.append({"case_id":self.case["id"],"target_id":"web-chrome","assertion_id":a["id"],"test_id":"Synthetic::acceptance","attempt":1,"phase":"after","subject":"synthetic-order","location":"synthetic-observable-value","value":a["check"]["expected_value"]})
-        self.plan={"repository":str(self.repo),"runner":"synthetic-native-runner","argv":[sys.executable,str(self.runner)],"manifest_sha256":sha256_file(self.path),"profile_sha256":sha256_file(self.profile_path),"report_format":"junit","bindings":[{"case_id":self.case["id"],"target_id":"web-chrome","asset":"tests/fixture_runner.py","asset_sha256":sha256_file(self.runner),"test_id":"Synthetic::acceptance","route":"synthetic-plumbing-only","assertion_ids":[a["id"] for a in self.case["assertions"]]}]}
+        self.plan={"schema_version":"2","support_files":[],"workspace":str(self.repo),"runner":"synthetic-native-runner","argv":[sys.executable,str(self.runner)],"manifest_sha256":sha256_file(self.path),"profile_sha256":sha256_file(self.profile_path),"report_format":"junit","bindings":[{"case_id":self.case["id"],"target_id":"web-chrome","asset":"tests/fixture_runner.py","asset_sha256":sha256_file(self.runner),"test_id":"Synthetic::acceptance","route":self.case["automation"][0]["candidate_route"],"review":"Synthetic runner plumbing fixture; no product assertions claimed.","assertion_ids":[a["id"] for a in self.case["assertions"]]}]}
         self.environment={"name":"Synthetic local test fixture","kind":"test","build":"fixture-v1"}
 
     def run_fixture(self,events=None,report=None,exit_code=0):
         write_json(self.repo/"fixture-events.json",{"events":self.events if events is None else events,"report":report or '<testsuites><testsuite><testcase classname="Synthetic" name="acceptance"/></testsuite></testsuites>',"exit_code":exit_code})
+        receipts=sorted((self.profile_path.parent/"native").glob("*/receipt.json"),key=lambda p:json.loads(p.read_text())["started_at"])
+        if receipts:
+            self.plan["bindings"][0]["rerun"]={"previous_receipt_sha256":sha256_file(receipts[-1]),"kind":"repeat","reason":"Synthetic separate adapter condition","reset_note":"Synthetic fixture rewritten"}
         output=execute(self.plan,self.path,self.profile_path,self.environment)
         return output,json.loads(output.read_text(encoding="utf8"))
 

@@ -10,7 +10,10 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "1.3"
+      "enum": [
+        "1.3",
+        "1.4"
+      ]
     },
     "run": {
       "type": "object",
@@ -113,6 +116,54 @@
         "case_workbook_sha256": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
+        },
+        "environments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "target_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "test",
+                  "staging",
+                  "preview"
+                ]
+              },
+              "entry": {
+                "type": "string"
+              },
+              "build": {
+                "type": "string"
+              },
+              "verified": {
+                "type": "boolean"
+              },
+              "evidence": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "target_id",
+              "name",
+              "kind",
+              "entry",
+              "build",
+              "verified",
+              "evidence"
+            ]
+          }
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -388,8 +439,72 @@
               "pattern": "^[a-f0-9]{64}$"
             }
           }
+        },
+        "lifecycle": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "phase": {
+                "enum": [
+                  "environment",
+                  "preparation",
+                  "cleanup"
+                ]
+              },
+              "status": {
+                "enum": [
+                  "passed",
+                  "failed",
+                  "not-required"
+                ]
+              },
+              "detail": {
+                "type": "string",
+                "minLength": 1
+              },
+              "captured_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "entry": {
+                "type": "string"
+              },
+              "build": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "phase",
+              "status",
+              "detail",
+              "captured_at"
+            ]
+          }
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "1.4"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "run": {
+            "required": [
+              "environments",
+              "invocation_id"
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

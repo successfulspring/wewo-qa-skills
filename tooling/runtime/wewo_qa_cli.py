@@ -22,6 +22,7 @@ import design_review
 import extract_source
 import judge_execution_results
 import native_execution
+import execution_summary
 import deliverables
 import render_execution_report
 import render_test_points_xmind
@@ -49,6 +50,7 @@ COMMANDS = {
     "judge-execution-results": judge_execution_results.main,
     "render-execution-report": render_execution_report.main,
     "run-native-tests": native_execution.main,
+    "summarize-execution": execution_summary.main,
     "validate-deliverables": deliverables.main,
 }
 

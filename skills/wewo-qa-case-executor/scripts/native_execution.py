@@ -1,4 +1,4 @@
-"""Run an existing project test runner and preserve its native evidence.
+"""Run an independent acceptance test runner and preserve its native evidence.
 
 This command does not invent tests or oracles. The agent supplies reviewed test
 assets and a scoped plan; observations must be emitted by the running tests.
@@ -110,18 +110,23 @@ def validate_native_observation(record, base, run, result, assertion_id):
         raise ValueError("native observation was not captured during this invocation")
 
 
-def execute(plan, manifest_path, profile_path, environment, *, timeout=600):
+def execute(plan, manifest_path, profile_path, environment=None, *, timeout=600):
     errors = schema_errors(plan, EXECUTOR_SCHEMA_ROOT / "native-plan.schema.json")
     if errors:
         raise ValidationFailure(errors)
     profile, manifest = validate_execution_profile_file(profile_path, manifest_path)
     if plan["manifest_sha256"] != sha256_file(manifest_path) or plan["profile_sha256"] != sha256_file(profile_path):
         raise ValidationFailure(["native plan baseline is stale"])
-    if environment["kind"] not in {"test", "staging", "preview"}:
-        raise ValidationFailure(["native automation requires an identified test environment"])
-    repo = Path(plan["repository"]).resolve(strict=True)
+    from execution_readiness import require_ready
+    if profile["schema_version"] != "1.2":
+        raise ValidationFailure(["new execution requires profile 1.2 discovery"])
+    if environment is not None:
+        declared = profile["environments"]
+        if len(declared) != 1 or any(environment.get(k) != declared[0].get(k) for k in ("name", "kind", "build")):
+            raise ValidationFailure(["external environment differs from the frozen profile"])
+    repo = Path(plan["workspace"]).resolve(strict=True)
     if not repo.is_dir() or not plan.get("runner") or not isinstance(plan.get("argv"), list) or not all(isinstance(x,str) and x for x in plan["argv"]):
-        raise ValidationFailure(["native plan requires a repository, runner and explicit argv"])
+        raise ValidationFailure(["native plan requires a test workspace, runner and explicit argv"])
     run_dir = profile_path.resolve().parent
     run_id = run_dir.name
     cases = {c["id"]:c for c in manifest["cases"]}
@@ -129,12 +134,38 @@ def execute(plan, manifest_path, profile_path, environment, *, timeout=600):
     resolved = {b["requirement_id"] for b in profile["bindings"] if b["status"] == "resolved"}
     seen = set()
     assets = {}
+    previous = {}
+    for saved in sorted((run_dir / "native").glob("*/receipt.json")):
+        receipt = load_json(saved)
+        if receipt["profile_sha256"] != sha256_file(profile_path):
+            raise ValidationFailure(["profile changed after execution; preserve it and start a new run"])
+        for binding in receipt["bindings"]:
+            key = (binding["case_id"], binding["target_id"])
+            if key not in previous or receipt["finished_at"] > previous[key][0]:
+                previous[key] = (receipt["finished_at"], sha256_file(saved), binding)
+    for support in plan["support_files"]:
+        path = (repo / support["path"]).resolve()
+        if not path.is_relative_to(repo) or not path.is_file() or sha256_file(path) != support["sha256"]:
+            raise ValidationFailure(["support asset escapes workspace, is absent, or changed"])
+        assets[str(path)] = path
     for binding in plan["bindings"]:
         pair = (binding["case_id"], binding["target_id"])
         if pair not in pairs or pair in seen:
             raise ValidationFailure(["native plan contains unexpected or duplicate case-target binding"])
         seen.add(pair)
         case = cases[pair[0]]
+        ready = require_ready(profile, manifest, *pair)
+        if binding["route"] != ready["route"]:
+            raise ValidationFailure(["execution route differs from the reviewed evidence surface"])
+        if pair in previous:
+            prior = previous[pair]
+            rerun = binding.get("rerun", {})
+            if rerun.get("previous_receipt_sha256") != prior[1]:
+                raise ValidationFailure(["repeat requires a link to the latest invocation, reason and reset evidence"])
+            if rerun.get("kind") == "retry" and prior[2].get("rerun", {}).get("kind") == "retry":
+                raise ValidationFailure(["one controlled retry allowed; investigate before further execution"])
+        elif binding.get("rerun"):
+            raise ValidationFailure(["rerun references no previous attempt in this run"])
         auto = next(a for a in case["automation"] if a["target_id"] == pair[1])
         if auto["feasibility"] == "manual":
             raise ValidationFailure(["manual-only case cannot have generated automation"])
@@ -147,7 +178,7 @@ def execute(plan, manifest_path, profile_path, environment, *, timeout=600):
             raise ValidationFailure(["native plan contains an unresolved execution prerequisite"])
         asset = (repo / binding["asset"]).resolve()
         if not asset.is_relative_to(repo) or not asset.is_file() or sha256_file(asset) != binding["asset_sha256"]:
-            raise ValidationFailure(["native test asset escapes the repository, is absent, or changed"])
+            raise ValidationFailure(["native test asset escapes the workspace, is absent, or changed"])
         if not binding.get("test_id") or not binding.get("route"):
             raise ValidationFailure(["native binding requires the actual test identifier and evidence route"])
         assets[str(asset)] = asset
@@ -162,19 +193,19 @@ def execute(plan, manifest_path, profile_path, environment, *, timeout=600):
     report = invocation / ("report.xml" if plan["report_format"] == "junit" else "report.json")
     observations = invocation / "observations.jsonl"
     env = os.environ.copy()
-    env.update(WEWO_QA_RUN_ID=run_id, WEWO_QA_OBSERVATIONS_FILE=str(observations), WEWO_QA_REPORT_FILE=str(report))
+    env.update(WEWO_QA_RUN_ID=run_id, WEWO_QA_OBSERVATIONS_FILE=str(observations), WEWO_QA_REPORT_FILE=str(report), WEWO_QA_PROFILE_FILE=str(profile_path))
     substitutions = {"{report}":str(report), "{output_dir}":str(invocation), "{observations}":str(observations)}
     argv = []
     for argument in plan["argv"]:
         for key,value in substitutions.items():
             argument = argument.replace(key,value)
         argv.append(argument)
-    receipt = {"format":"wewo-qa-native-run/1", "run_id":run_id, "runner":plan["runner"], "argv":argv,
-        "repository":str(repo), "manifest_sha256":sha256_file(manifest_path), "profile_sha256":sha256_file(profile_path),
+    receipt = {"format":"wewo-qa-native-run/2", "run_id":run_id, "runner":plan["runner"], "argv":argv,
+        "workspace":str(repo), "environments":copy.deepcopy(profile["environments"]), "manifest_sha256":sha256_file(manifest_path), "profile_sha256":sha256_file(profile_path),
         "bindings":copy.deepcopy(plan["bindings"]), "report_format":plan["report_format"], "started_at":now(), "assets":[]}
     for i,asset in enumerate(assets.values()):
-        frozen = invocation / "assets" / f"{i}{asset.suffix}"
-        frozen.parent.mkdir(exist_ok=True)
+        frozen = invocation / "assets" / asset.relative_to(repo)
+        frozen.parent.mkdir(parents=True, exist_ok=True)
         frozen.write_bytes(asset.read_bytes())
         receipt["assets"].append({"path":asset.relative_to(repo).as_posix(), "sha256":sha256_file(frozen), "evidence_path":frozen.relative_to(run_dir).as_posix()})
     with (invocation / "stdout.log").open("wb") as stdout, (invocation / "stderr.log").open("wb") as stderr:
@@ -186,26 +217,27 @@ def execute(plan, manifest_path, profile_path, environment, *, timeout=600):
         except OSError as exc:
             receipt.update(exit_code=-1, timeout=False, startup_error=str(exc))
     receipt["finished_at"] = now()
+    receipt["asset_changes"] = [a["path"] for a in receipt["assets"] if not (repo / a["path"]).is_file() or sha256_file(repo / a["path"]) != a["sha256"]]
     for field,path in [("report", report), ("observations", observations), ("stdout",invocation/"stdout.log"), ("stderr",invocation/"stderr.log"), ("human_report",invocation/"html-report/index.html")]:
         if path.is_file():
             receipt[field] = {"path":path.relative_to(run_dir).as_posix(), "sha256":sha256_file(path)}
     receipt_path = invocation / "receipt.json"
     write_json(receipt_path, receipt)
-    results = collect(receipt_path, manifest, manifest_path, profile, profile_path, environment)
+    results = collect(receipt_path, manifest, manifest_path, profile, profile_path, environment=None)
     output = run_dir / f"execution-results.{invocation.name}.json"
     write_json(output, results)
     validate_results_file(output, manifest_path)
     return output
 
 
-def collect(receipt_path, manifest, manifest_path, profile, profile_path, environment):
+def collect(receipt_path, manifest, manifest_path, profile, profile_path, environment=None):
     run_dir = profile_path.parent
     receipt = load_json(receipt_path)
     run = {"run_id":receipt["run_id"], "manifest_path":profile["manifest_path"], "manifest_sha256":sha256_file(manifest_path),
         "execution_profile_path":"execution-profile.json", "execution_profile_sha256":sha256_file(profile_path),
         "case_workbook_sha256":profile["case_workbook_sha256"], "suite":profile["suite"], "targets":profile["targets"],
-        "environment":environment, "started_at":receipt["started_at"], "finished_at":receipt["finished_at"]}
-    candidate = {"schema_version":"1.3", "run":run, "results":[]}
+        "environment":{k:profile["environments"][0][k] for k in ("name","kind","build")}, "environments":copy.deepcopy(profile["environments"]), "invocation_id":receipt_path.parent.name, "started_at":receipt["started_at"], "finished_at":receipt["finished_at"]}
+    candidate = {"schema_version":"1.4", "run":run, "results":[]}
     try:
         outcomes = native_tests(receipt_file(run_dir, receipt, "report"), receipt["report_format"])
     except (KeyError, OSError, ValueError, ET.ParseError):
@@ -227,7 +259,12 @@ def collect(receipt_path, manifest, manifest_path, profile, profile_path, enviro
                 "tool":receipt["runner"],"assertions":[],"evidence":[],"blocker":"No mapped native test or complete runner evidence."}
             if auto["feasibility"] == "manual":
                 result.update(status="not-run",attempts=0,blocker="manual-only case")
+            if not binding and auto["feasibility"] != "manual":
+                readiness = next(r for r in profile["case_readiness"] if (r["case_id"],r["target_id"]) == (case["id"],target))
+                result["blocker"] = readiness["reason"] or "Ready case not mapped in this invocation; retained for run summary."
             if binding:
+                from native_lifecycle import lifecycle_for
+                result["lifecycle"], lifecycle_errors, prepared = lifecycle_for(receipt, events, binding)
                 result["native_test"] = {"receipt_path":receipt_path.relative_to(run_dir).as_posix(), "receipt_sha256":sha256_file(receipt_path),
                     "asset":binding["asset"], "test_id":binding["test_id"], "route":binding["route"]}
                 for planned in case["assertions"]:
@@ -236,6 +273,8 @@ def collect(receipt_path, manifest, manifest_path, profile, profile_path, enviro
                     actual = {"assertion_id":planned["id"], "description":planned["description"], "expected":planned["expected"],
                         "actual":"", "status":"not-evaluated", "observations":[], "evidence_refs":[], "reason":"Missing or inconsistent native observations."}
                     for index,event in enumerate(events,1):
+                        if not isinstance(event, dict):
+                            continue
                         if (event.get("case_id"),event.get("target_id"),event.get("assertion_id"),event.get("test_id")) != (case["id"],target,planned["id"],binding["test_id"]):
                             continue
                         if event.get("phase") not in {"before","after"}:
@@ -260,6 +299,8 @@ def collect(receipt_path, manifest, manifest_path, profile, profile_path, enviro
                                 "path":attached.relative_to(run_dir).as_posix(),"sha256":sha256_file(attached)})
                             actual["evidence_refs"].append(aid)
                     try:
+                        if not prepared:
+                            raise ValueError("Environment or preparation was not verified.")
                         verdicts = evaluate_observations(actual,planned,{e["id"]:e for e in result["evidence"]},run,result,run_dir,fill_actual=True)
                         types = {e["type"] for e in result["evidence"] if e["id"] in actual["evidence_refs"]}
                         if planned["check"]["kind"] == "evidence-review" or not set(planned["required_evidence"]) <= types:
@@ -267,32 +308,34 @@ def collect(receipt_path, manifest, manifest_path, profile, profile_path, enviro
                         actual.update(status="passed" if all(verdicts) else "failed")
                         actual.pop("reason",None)
                     except (ValueError, KeyError) as exc:
-                        actual.update(status="not-evaluated",reason=str(exc),observations=[])
+                        actual.update(status="not-evaluated",reason=str(exc))
                     result["assertions"].append(actual)
                 statuses = outcomes.get(binding["test_id"],[])
+                if not set(auto["required_evidence"]) <= {e["type"] for e in result["evidence"]}:
+                    lifecycle_errors.append("Missing required case-level evidence.")
                 if any(a["status"] == "failed" for a in result["assertions"]):
                     result.update(status="failed",failure_reason="Runner-produced value differs from the requirement-derived expected result.")
                     result.pop("blocker",None)
-                elif statuses == ["passed"] and result["assertions"] and all(a["status"] == "passed" for a in result["assertions"]) and not receipt.get("timeout"):
+                elif statuses == ["passed"] and result["assertions"] and all(a["status"] == "passed" for a in result["assertions"]) and not receipt.get("timeout") and not lifecycle_errors:
                     result["status"] = "passed"
                     result.pop("blocker",None)
                 else:
-                    result["blocker"] = "Native status " + str(statuses) + "; incomplete checks, skipped test, startup/test defect, or ambiguous retries."
+                    result["blocker"] = "; ".join(lifecycle_errors) or ("Native status " + str(statuses) + "; incomplete checks, skipped test, startup/test defect, or ambiguous retries.")
             result["observed"] = "; ".join(a["assertion_id"] + ": " + a["actual"] for a in result["assertions"] if a["actual"])
             candidate["results"].append(result)
     return candidate
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Execute mapped repository-native acceptance tests and preserve real evidence.")
+    parser = argparse.ArgumentParser(description="Execute mapped acceptance tests from an independent workspace and preserve real evidence.")
     parser.add_argument("manifest",type=Path)
     parser.add_argument("profile",type=Path)
     parser.add_argument("plan",type=Path)
-    parser.add_argument("--environment",type=Path,required=True,help="Non-secret, verified test environment identity JSON.")
+    parser.add_argument("--environment",type=Path,help="Legacy explicit environment; must match the verified profile. New plans use the profile directly.")
     parser.add_argument("--timeout",type=int,default=600)
     args = parser.parse_args()
     if args.timeout < 1:
         raise ValueError("timeout must be positive")
-    path = execute(load_json(args.plan),args.manifest.resolve(),args.profile.resolve(),load_json(args.environment),timeout=args.timeout)
+    path = execute(load_json(args.plan),args.manifest.resolve(),args.profile.resolve(),load_json(args.environment) if args.environment else None,timeout=args.timeout)
     print(f"WROTE: {path}; native execution complete, inspect verdicts before reporting")
     return 0

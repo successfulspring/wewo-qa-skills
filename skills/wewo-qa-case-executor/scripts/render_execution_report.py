@@ -9,7 +9,9 @@ import os
 from openpyxl import Workbook
 
 from artifact_tools import ValidationFailure, validate_results_file, write_bytes_atomic
-from xlsx_support import add_table, workbook_bytes
+from xlsx_support import workbook_bytes
+from artifact_language import output_language
+from report_language import ReportText
 
 
 STATUS_LABELS = {"passed": "通过", "failed": "失败", "blocked": "阻塞", "flaky": "不稳定", "not-run": "未执行", "not-evaluated": "未检查"}
@@ -30,6 +32,7 @@ def automatic_gate(results, manifest):
 
 
 def render_report(results, manifest, *, results_dir=None, report_dir=None) -> bytes:
+    tr = ReportText(output_language(manifest))
     run = results["run"]
     cases = {case["id"]: case for case in manifest["cases"]}
     workbook = Workbook()
@@ -60,9 +63,9 @@ def render_report(results, manifest, *, results_dir=None, report_dir=None) -> by
                 planned_auto += 1
                 evaluated_auto += status != "not-evaluated"
                 passed_auto += status == "passed"
-            assertion_rows.append([case["id"], target, planned["id"], planned["description"], planned["observation"], planned["expected"], actual.get("actual", ""), STATUS_LABELS[status], "\n".join(actual.get("evidence_refs", [])), actual.get("reason", result.get("blocker", ""))])
+            assertion_rows.append([case["id"], target, planned["id"], planned["description"], planned["observation"], planned["expected"], actual.get("actual", ""), tr(STATUS_LABELS[status]), "\n".join(actual.get("evidence_refs", [])), actual.get("reason", result.get("blocker", ""))])
             assertion_rows[-1].extend([planned["check"]["kind"], planned["check"]["timing"], json.dumps(actual.get("observations", []), ensure_ascii=False), json.dumps(actual.get("judgments", []), ensure_ascii=False)])
-        result_rows.append([case["id"], case["title"], target, STATUS_LABELS[result["status"]], assessment["feasibility"], result["attempts"], result["tool"], result.get("observed", ""), result.get("failure_reason", result.get("blocker", ""))])
+        result_rows.append([case["id"], case["title"], target, tr(STATUS_LABELS[result["status"]]), tr({"automatable":"可自动化","conditional":"有条件自动化","manual":"人工执行"}[assessment["feasibility"]]), result["attempts"], result["tool"], result.get("observed", ""), result.get("failure_reason", result.get("blocker", "")), result.get("history_note", "")])
         for evidence in result["evidence"]:
             evidence_rows.append([case["id"], target, evidence["id"], evidence["type"], evidence["description"], report_link(evidence["path"]), evidence["sha256"]])
     summary = [["项目", manifest["project"]["name"]], ["执行门禁", automatic_gate(results, manifest)], ["运行编号", run["run_id"]], ["用例集", run["suite"]], ["目标", "\n".join(run["targets"])], ["环境", run["environment"]["name"]], ["构建", run["environment"]["build"]], ["开始", run["started_at"]], ["结束", run["finished_at"]], ["用例基线 SHA256", run["manifest_sha256"]], ["用例 Excel SHA256", run["case_workbook_sha256"]], ["执行条件 SHA256", run["execution_profile_sha256"]]]
@@ -70,8 +73,18 @@ def render_report(results, manifest, *, results_dir=None, report_dir=None) -> by
     summary += [["自动化必检断言数", planned_auto], ["已检查断言数", evaluated_auto], ["通过断言数", passed_auto], ["断言检查覆盖率", f"{evaluated_auto}/{planned_auto}" if planned_auto else "不适用"], ["说明", "人工用例和阻塞项保留在明细；门禁仅反映已选自动化范围，不能证明整个项目无缺陷。"]]
     if run.get("notes"):
         summary.append(["执行说明", run["notes"]])
-    add_table(workbook, "执行汇总", ["项目", "内容"], summary, {"项目": 30, "内容": 100})
-    add_table(workbook, "用例结果", ["用例编号", "用例名称", "目标编号", "状态", "自动化评估", "尝试次数", "执行工具", "实际观察", "失败或阻塞原因"], result_rows, {"用例名称": 40, "实际观察": 60, "失败或阻塞原因": 60})
+    summary = [[tr(label), value] for label,value in summary]
+    for row in summary:
+        if row[0] == tr("说明"):
+            row[1] = tr(row[1])
+        elif row[1] == "不适用":
+            row[1] = tr(row[1])
+    executed = sum(r["attempts"] > 0 for r in results["results"])
+    summary.append([tr("执行完成情况"), str(executed) + "/" + str(len(results["results"]))])
+    manual = sum(next(a for a in cases[r["case_id"]]["automation"] if a["target_id"] == r["target_id"])["feasibility"] == "manual" for r in results["results"])
+    summary.append([tr("人工用例数"), manual])
+    tr.add_table(workbook, "执行汇总", ["项目", "内容"], summary, {"项目": 30, "内容": 100})
+    tr.add_table(workbook, "用例结果", ["用例编号", "用例名称", "目标编号", "状态", "自动化评估", "尝试次数", "执行工具", "实际观察", "失败或阻塞原因", "历史说明"], result_rows, {"用例名称": 40, "实际观察": 60, "失败或阻塞原因": 60})
     implementations = []
     for result in results["results"]:
         if not result.get("native_test"):
@@ -89,19 +102,40 @@ def render_report(results, manifest, *, results_dir=None, report_dir=None) -> by
             if report:
                 native_report = report_link(report["path"])
         implementations.append([result["case_id"],result["target_id"],result["tool"],native["route"],code,native["test_id"],report_link(native["receipt_path"]),native_report])
-    implementation_sheet = add_table(workbook,"自动化实现",["用例编号","目标编号","运行框架","证据路线","测试代码快照","框架测试编号","执行记录","框架原生报告"],implementations,{"测试代码快照":60,"框架测试编号":65,"执行记录":65,"框架原生报告":65})
+    implementation_sheet = tr.add_table(workbook,"自动化实现",["用例编号","目标编号","运行框架","证据路线","测试代码快照","框架测试编号","执行记录","框架原生报告"],implementations,{"测试代码快照":60,"框架测试编号":65,"执行记录":65,"框架原生报告":65})
     for row in range(2, implementation_sheet.max_row + 1):
         for column in (5,7,8):
             cell = implementation_sheet.cell(row,column)
             if cell.value:
                 cell.hyperlink = str(cell.value)
                 cell.style = "Hyperlink"
-    add_table(workbook, "断言结果", ["用例编号", "目标编号", "断言编号", "检查内容", "观察位置", "预期结果", "实际结果", "状态", "证据编号", "未检查原因", "比较方式", "检查时机", "各次观察引用", "证据评判理由"], assertion_rows, {"预期结果": 50, "实际结果": 50, "未检查原因": 50})
-    sheet = add_table(workbook, "证据索引", ["用例编号", "目标编号", "证据编号", "类型", "说明", "文件路径", "SHA256"], evidence_rows, {"说明": 55, "文件路径": 65})
+    tr.add_table(workbook, "断言结果", ["用例编号", "目标编号", "断言编号", "检查内容", "观察位置", "预期结果", "实际结果", "状态", "证据编号", "未检查原因", "比较方式", "检查时机", "各次观察引用", "证据评判理由"], assertion_rows, {"预期结果": 50, "实际结果": 50, "未检查原因": 50})
+    sheet = tr.add_table(workbook, "证据索引", ["用例编号", "目标编号", "证据编号", "类型", "说明", "文件路径", "SHA256"], evidence_rows, {"说明": 55, "文件路径": 65})
     for row in range(2, sheet.max_row + 1):
         cell = sheet.cell(row, 6)
         cell.hyperlink = str(cell.value)
         cell.style = "Hyperlink"
+    lifecycle_rows = []
+    phase_labels = {"environment":"环境核验","preparation":"数据准备","cleanup":"数据清理"}
+    for result in results["results"]:
+        for event in result.get("lifecycle", []):
+            lifecycle_rows.append([result["case_id"],result["target_id"],tr(phase_labels[event["phase"]]),
+                tr(STATUS_LABELS.get(event["status"], "无需清理")),event["detail"],event["captured_at"]])
+    tr.add_table(workbook,"准备与清理",["用例编号","目标编号","阶段","状态","说明","时间"],lifecycle_rows,{"说明":70})
+    if results.get("history"):
+        sheet = tr.add_table(workbook,"执行历史",["用例编号","目标编号","次数","状态","重跑类型","重跑原因","重置依据","结果记录"],
+            [[r["case_id"],r["target_id"],r["attempt"],tr(STATUS_LABELS[r["status"]]),r["kind"],r["reason"],r["reset_note"],report_link(r["source"])] for r in results["history"]],{"重跑原因":60,"重置依据":55})
+        for row in sheet.iter_rows(min_row=2):
+            row[7].hyperlink = str(row[7].value)
+            row[7].style = "Hyperlink"
+    if run.get("environments"):
+        tr.add_table(workbook,"环境与就绪",["目标编号","环境","入口","构建","核验依据"],
+            [[e["target_id"],e["name"],e["entry"],e["build"],e["evidence"]] for e in run["environments"]],{"核验依据":80,"入口":65})
+    if results.get("readiness"):
+        readiness_labels = {"pending":"待核验", "ready":"已就绪", "blocked":"阻塞", "manual":"人工执行"}
+        tr.add_table(workbook,"用例就绪",["用例编号","目标编号","就绪状态","证据路线","条件检查","失败或阻塞原因"],
+            [[r["case_id"],r["target_id"],tr(readiness_labels[r["status"]]),r["route"],
+              "\n".join(c["area"] + ": " + c["status"] + " — " + c["detail"] for c in r["checks"]),r["reason"]] for r in results["readiness"]],{"条件检查":90,"失败或阻塞原因":65})
     return workbook_bytes(workbook)
 
 
@@ -117,7 +151,15 @@ def main():
         from artifact_layout import SUITES, case_workbook_path
         if output in {results_path, manifest_path, *(case_workbook_path(manifest_path, s) for s in SUITES)}:
             raise ValidationFailure(["report must not overwrite an execution or case baseline"])
-        results, manifest = validate_results_file(results_path, manifest_path)
+        from artifact_tools import load_json
+        incoming = load_json(results_path)
+        if incoming.get("format") == "wewo-qa-run-summary/1":
+            from execution_summary import load_summary
+            results, manifest = load_summary(results_path, manifest_path)
+        else:
+            results, manifest = validate_results_file(results_path, manifest_path)
+            if results["schema_version"] == "1.4":
+                raise ValidationFailure(["new runs require summarize-execution before final reporting; do not select only a favorable invocation"])
         write_bytes_atomic(output, render_report(results, manifest, results_dir=results_path.parent, report_dir=output.parent))
     except (ValidationFailure, OSError) as exc:
         print(f"ERROR: {exc}")

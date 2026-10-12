@@ -1,6 +1,8 @@
-# Preserved UI observations
+# Preserved observations and evidence review
 
-Record real tool execution, never synthesize expected values as observations. Tool availability, valid case design and a matching JSON file are separate facts. Run the original UI steps, wait for the specified observable timing, and inspect the correct subject/location on the selected test build.
+Record real tool execution, never synthesize expected values as observations. Tool availability, valid case design and a matching JSON file are separate facts. Run the original business steps on the required surface, wait for the specified observable timing, and inspect the correct subject/location on the selected test build. Interface cases preserve actual responses; UI cases preserve the required UI evidence. Preparation responses alone cannot prove a subsequent business outcome.
+
+## Direct tool observations
 
 For every evaluated assertion, preserve a JSON file in this run's evidence directory using `schemas/ui-observation.schema.json`:
 
@@ -31,3 +33,11 @@ Hashes and metadata reject accidental changes, stale runs, mismatched subjects a
 ## Native test observations
 
 `wewo-qa-native-observation/1` additionally links its original runner-produced JSONL line to an immutable native-run receipt. The validator checks receipt/profile/manifest, exact test mapping, native report status, archived executable asset hashes, observed value, subject/time and report/log hashes. `run-native-tests` creates these records from actual process execution; do not fabricate UI wrapper records to represent generated code. Native report adapters are described in [native automation](native-automation.md).
+
+Native JSONL also contains lifecycle records for environment, preparation and cleanup. They identify the same run/case/target/test, preserve actual event order and include the observed target entry/build. The collector carries these into results and checks them independently of business comparisons. Missing or failed conditions cannot be repaired by changing result prose.
+
+## Complete objective evidence review
+
+Keep the original invocation result. For an `evidence-review` assertion with all planned observations and required attachments present, inspect each attachment and compare it with the frozen objective criteria. In the canonical `execution-results.<invocation-id>.judged.json` copy, provide `judgments` with attempt, passed/failed status and a substantive reason tied to the observed pixels/text. Set the assertion's actual value from its preserved observation, its supported status, and remove the prior unevaluated reason. Do not create new observed values or alter evidence hashes to obtain a pass.
+
+Recompute case status from all assertion and native/lifecycle outcomes: remaining unchecked assertions or invalid lifecycle keep it blocked; demonstrated mismatches make it failed; only a complete valid pass can pass. Validate this copy before summarizing. When evidence is insufficient, retain the original blocked result and explain the missing check. A deterministic check remains deterministic even if a visual route would be easier.

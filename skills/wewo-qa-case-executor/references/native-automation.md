@@ -1,49 +1,41 @@
-# Project-native acceptance automation
+# Independent acceptance automation
 
-## Resolve the runner from the actual repository
+## Workspace and implementation
 
-Read task-relevant source, existing test paths/config/scripts, fixtures/page objects and lockfiles. Verify deployed build alignment. Reuse the established Playwright Test, Cypress, pytest, mobile/desktop framework or other appropriate runner; language alone is not a selection rule. Keep UI-visible business assertions in UI tests. API acceptance is suitable only for interface-defined behavior or supported setup/checks that preserve the case's evidence. Do not replace an end-to-end flow with mocked unit tests.
+Reuse an authorized existing test workspace; otherwise create a persistent `qa-automation/<artifact-id>/` workspace beside `qa-artifacts/`. It need not be a Git repository or contain product source. Keep tests, helpers, dependency manifests/locks and test-only configuration there. Do not put scripts among tester-facing deliverables.
 
-Generated code lives in normal project test paths and includes stable case/AS identifiers. For a case spanning multiple confirmed leaves, bind every planned `AS-*` to the exact post-step observation for that leaf, including related-object changes and unchanged invariants; a single final success check does not replace them. Reuse helpers, deterministic waits, independent data and cleanup. Source code is read-only except test assets/config. Product defects remain reported defects. Current case oracles stay frozen even if the implementation does something else.
+Select a mature runner from actual target/control needs and available tooling. Reuse existing suitable infrastructure. Inspect live UI and supplied interface documentation for real operations/locators. An interface contract is not product source. Use deterministic waits, isolated data and cleanup. Existing fixtures/helpers are useful only when their behavior preserves the current case.
 
-## Plan and evidence
+Map each case-target to one native test ID and every required assertion. One coherent journey may check multiple leaves; a final success message cannot replace independent business checks. Keep the expected values frozen.
 
-A native plan is agent-owned JSON under private run state:
+## Plan and runtime binding
 
-```json
-{
-  "repository": "<authorized project root>",
-  "runner": "<actual existing runner>",
-  "manifest_sha256": "<frozen manifest hash>",
-  "profile_sha256": "<frozen execution profile hash>",
-  "report_format": "junit",
-  "argv": ["<existing runner command>", "<selected test scope>", "<report option using {report}>"],
-  "bindings": [{
-    "case_id": "<case ID>", "target_id": "<target>",
-    "asset": "<repository-relative test file>", "asset_sha256": "<hash>",
-    "test_id": "<exact native report identifier>",
-    "route": "<case-preserving evidence surface>",
-    "assertion_ids": ["<all planned AS IDs for this target>"]
-  }]
-}
-```
+Native plan 2 uses `workspace`, `runner`, explicit `argv`, `manifest_sha256`, `profile_sha256`, `report_format` and `bindings`. Each binding has case_id, target_id, asset, asset_sha256, test_id, route, assertion_ids and `review` describing the actual step/assertion walkthrough. `support_files` archives local helpers, runner configuration and dependency locks used by the entry assets, with path and SHA256. Scope these assets to the authorized workspace. Preserve source paths in the archived tree.
 
-The agent supplies the real repository command, not a shell string. The tool does not create the tests or choose their runner. `{report}`, `{output_dir}`, `{observations}` expand to fresh invocation-local paths. Environment variables `WEWO_QA_RUN_ID`, `WEWO_QA_REPORT_FILE`, `WEWO_QA_OBSERVATIONS_FILE` expose those non-secret locations to the tests. Framework credentials remain safe references/session setup, never plan arguments or artifacts.
+The actual route must match the reviewed candidate surface. Native report collection supports JUnit XML and Playwright JSON. Resolve test IDs from real discovery/report output; JUnit uses classname::name and Playwright uses suite/spec titles with [projectName]. Additional runners need an appropriate established reporter/adapter preserving the same evidence, not a fabricated report.
 
-Instrument the generated tests to append original observed values to the observation JSONL as they execute. Each line has `run_id`, `case_id`, `target_id`, exact `test_id`, `assertion_id`, `attempt` (1 per invocation), `phase` (before/after), `subject`, `location`, ISO `captured_at`, and `value`. Use actual response/element/object values, not expected values or seeded data as a substitute for post-action observations. Keep independent before/after values for delta/unchanged checks. Preserve assertion failure evidence before cleanup. No observation emitted means the assertion was not evaluated.
+Use collection/list mode to inspect test IDs before running business steps. Execute focused checks, full runs and repair verification through `run-native-tests`; they all belong to the preserved invocation history. Do not run an unrecorded business trial and report only the later successful attempt.
 
-Optional `attachments` on an event have type/path/description; paths must stay in the fresh output directory. Preserve real screenshots/traces as required. Visual/semantic criteria additionally require explicit reasoned review; a process return code alone cannot judge them. The collector initially marks checks requiring further review blocked; complete their actual evidence/judgments before judging/reporting.
+The runner receives `WEWO_QA_PROFILE_FILE` pointing to the frozen profile. Generated tests read their target's verified entry/build and safe bindings from that profile. Record the actual target entry/build in the lifecycle record and check it against the profile; do not merely label results with an unrelated environment JSON.
 
 ```text
-<qa-tool> run-native-tests <manifest> <run>/execution-profile.json <run>/native-plan.json --environment <run>/environment.json
-<qa-tool> validate-execution-results <run>/execution-results.<invocation>.json <manifest>
-<qa-tool> render-execution-report <results> <manifest> --output <public-root>/test-execution-report.xlsx
+<qa-tool> run-native-tests <manifest> <run>/execution-profile.json <run>/native-plan.json
 ```
 
-The verified non-secret environment JSON has `name`, `kind` (test/staging/preview), `build`, and optional `base_url`/notes. This command does execute the supplied runner in the authorized project. Environment/data preflight and action authorization must happen first. Existing authorization for ordinary test execution applies; ask only about genuinely missing inputs or consequential actions outside it.
+The command expands {report}, {output_dir}, {observations}; it sets WEWO_QA_RUN_ID, WEWO_QA_REPORT_FILE and WEWO_QA_OBSERVATIONS_FILE. argv is an argument array, never a composed shell command. Credentials are obtained through approved references/session setup, never command arguments.
 
-Built-in native report collection supports JUnit XML (pytest/Cypress and other established reporters) and Playwright JSON. JUnit test identifiers are `classname::name`. Playwright identifiers are suite/spec titles joined by ` > ` followed by ` [projectName]`. Resolve these from actual native reports/discovery; do not guess. Preserve the project's native human reporter, including Playwright HTML when used. Other established formats require a small specific adapter with preserved original report/exit/observations, not replacing the runner or fabricating a passing UI record.
+## Original observations
 
-Missing/duplicate test IDs, skipped tests, zero discovery, ambiguous hidden retries, missing assertions and startup failures do not pass. Disable runner retries for collection. A justified rerun creates a separate invocation and report; preserve the initial report and explain its classification in the final report. The native collector does not merge invocations into one attempt history. An unexplained fail/pass difference remains unresolved or flaky, never a clean pass. `run-native-tests` saves immutable invocation directories, code snapshots, stdout/stderr, report, observed values and a receipt, compares every assertion, and records unmapped/manual pairs. It does not prove that incorrect generated tests faithfully interacted with the product; semantic review and actual native execution are both required.
+Each assertion JSONL event has run_id, case_id, target_id, test_id, assertion_id, attempt=1, phase=before/after, subject, location, captured_at and the actual value. Emit values observed from the deployed system, not copied expectations or seed data. `number-delta` and `unchanged` require exactly one before and one after event with the same subject/location. Other comparators, including `equals` and `evidence-review`, require exactly one after event; an extra before event makes the comparison invalid. Capture other diagnostic state in separate attachments.
 
-Framework reporter references: [Playwright](https://playwright.dev/docs/test-reporters), [pytest](https://docs.pytest.org/en/stable/how-to/output.html), [Cypress](https://docs.cypress.io/app/tooling/reporters).
+A lifecycle event uses `event="lifecycle"`, the same run/case/target/test identity, phase=environment/preparation/cleanup and status=passed/failed/not-required, detail and captured_at. Environment events additionally contain the actual entry and build. Cleanup not-required needs a concrete reason; failed cleanup stays visible. Preserve real event order and capture evidence before cleanup.
+
+Attachments carry type/path/description, are relative to the invocation directory and must exist there. Keep native HTML reports where supported. Tests emit each available assertion before applying a failing framework assertion, so the original mismatch survives an early stop. Subsequent unperformed checks remain unchecked.
+
+## Repeats and repair
+
+Disable hidden runner retries. Each invocation is immutable. Repeating a mapped pair requires `rerun` on that binding: previous_receipt_sha256, kind (repeat/retry/test-repair), reason and reset_note. The previous hash identifies its latest actual attempt in this run. State why rerunning is warranted and how the same initial state was restored. Test-repair additionally documents the test defect and why the change preserves the frozen oracle.
+
+Use one controlled retry to diagnose a transient outcome; do not loop until passing. A changed deployment/profile begins another run, linked in its notes to the earlier run. A legitimate script repair preserves the old code/observations and records the new code; it is not evidence of a product fix.
+
+`summarize-execution` gathers all invocation results for the run and rejects missing history. Unexplained fail/pass changes remain incomplete or flaky. Equivalent passing/failing runs are flaky; documented test repairs remain visible even when the current tests pass. Only actual new-version execution can verify a product repair.

@@ -30,6 +30,36 @@ def main():
         return result.stdout
     if run("--version").strip() != f"wewo-qa {VERSION}":
         raise RuntimeError("runtime version does not match source")
+    # Reuse the maintenance protocol fixture to exercise real process launch,
+    # collection and complete-run rendering through the packaged executable.
+    # Its observations are synthetic; this is not a product acceptance test.
+    from test_workflow import NativeRunnerTests
+    fixture = NativeRunnerTests()
+    fixture.setUp()
+    try:
+        plan_path = fixture.profile_path.with_name("native-plan.json")
+        write_json(plan_path, fixture.plan)
+        write_json(fixture.repo / "fixture-events.json", {
+            "events": fixture.events,
+            "report": '<testsuites><testsuite><testcase classname="Synthetic" name="acceptance"/></testsuite></testsuites>',
+            "exit_code": 0,
+        })
+        run("run-native-tests", fixture.path, fixture.profile_path, plan_path)
+        result_path = next(fixture.profile_path.parent.glob("execution-results.*.json"))
+        run("validate-execution-results", result_path, fixture.path)
+        run("judge-execution-results", result_path, fixture.path)
+        judged_path = result_path.with_name(result_path.stem + ".judged.json")
+        run("validate-execution-results", judged_path, fixture.path)
+        run("render-execution-report", result_path, fixture.path, fail=True)
+        run("summarize-execution", fixture.path, fixture.profile_path)
+        summary_path = fixture.profile_path.with_name("execution-summary.json")
+        run("render-execution-report", summary_path, fixture.path)
+        book = load_workbook(fixture.profile_path.with_name("test-execution-report.xlsx"))
+        if book["执行汇总"]["B3"].value != "PASSED" or book["执行历史"].max_row != 2:
+            raise RuntimeError("native invocation was not preserved in the complete run report")
+        book.close()
+    finally:
+        fixture.doCleanups()
     with tempfile.TemporaryDirectory(prefix="wewo-qa-smoke-") as folder:
         directory = Path(folder)
         manifest, path, profile, profile_path, results, results_path = execution_set(directory)
@@ -205,7 +235,7 @@ def main():
         write_json(points_path, points)
         run("validate-requirement-readiness", context_path, fail=True)
         run("render-test-points-xmind", points_path, "--draft", fail=True)
-    print("OK: bundled coverage-plan freezing/change rejection, extraction, XMind, Excel roundtrip, profile, assertion rejection and failure report smoke")
+    print("OK: bundled native execution/summary, coverage-plan freezing, extraction, XMind, Excel roundtrip, profile, assertion rejection and failure report smoke")
     return 0
 
 

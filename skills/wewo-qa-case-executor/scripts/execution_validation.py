@@ -13,6 +13,11 @@ def profile_main():
     profile, _ = validate_execution_profile_file(args.profile.resolve(), args.manifest.resolve())
     resolved = sum(b["status"] == "resolved" for b in profile["bindings"])
     print(f"OK: {args.profile} ({resolved}/{len(profile['bindings'])} runtime requirements resolved)")
+    if profile["schema_version"] == "1.2":
+        from collections import Counter
+        print("READINESS: " + str(dict(Counter(r["status"] for r in profile["case_readiness"]))))
+    else:
+        print("HISTORICAL: fresh profile 1.2 discovery is required before new execution")
     return 0
 
 

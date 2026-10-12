@@ -281,7 +281,8 @@
             "mobile-app",
             "desktop-app",
             "mini-program",
-            "other"
+            "other",
+            "api"
           ]
         },
         "os": {
@@ -573,7 +574,8 @@
             "mobile-ui",
             "desktop-ui",
             "computer-use",
-            "none"
+            "none",
+            "api"
           ]
         },
         "runtime_requirement_refs": {

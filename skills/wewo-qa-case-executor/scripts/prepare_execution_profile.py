@@ -28,7 +28,7 @@ def build_profile(
     requirement_ids = expected_runtime_requirement_ids(manifest, suite, targets)
     relative_manifest = Path(os.path.relpath(manifest_path, output_path.parent)).as_posix()
     profile = {
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "manifest_path": relative_manifest,
         "manifest_sha256": sha256_file(manifest_path),
         "case_workbook_sha256": sha256_file(case_workbook_path(manifest_path, suite)),
@@ -40,6 +40,10 @@ def build_profile(
             for requirement_id in sorted(requirement_ids)
         ],
     }
+    from execution_readiness import draft_readiness
+    profile.update(discovered_requirements=[],
+        environments=[{"target_id":target, "name":"", "kind":"test", "entry":"", "build":"", "verified":False, "evidence":""} for target in targets],
+        case_readiness=draft_readiness(manifest, suite, targets))
     validate_execution_profile_data(profile, manifest, manifest_path)
     return profile
 
@@ -55,6 +59,8 @@ def main() -> int:
     manifest_path = args.manifest.resolve()
     output_path = args.output.resolve()
     try:
+        if output_path.exists():
+            raise ValidationFailure(["execution profile already exists; reconcile discovery in place or use a new run directory"])
         manifest = validate_manifest_file(manifest_path)
         from case_workbook import validate_case_workbooks
         validate_case_workbooks(manifest_path)

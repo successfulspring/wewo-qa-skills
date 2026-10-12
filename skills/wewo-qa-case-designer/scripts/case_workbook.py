@@ -456,9 +456,12 @@ def import_case_workbooks(manifest_path):
     return merged
 
 
-def main() -> int:
+def main(operation=None) -> int:
     parser = argparse.ArgumentParser(description="Export three suite files, validate all views, or reconcile Excel edits.")
-    parser.add_argument("operation", choices=("render", "import", "validate"))
+    if operation is None:
+        parser.add_argument("operation", choices=("render", "import", "validate"))
+    else:
+        parser.set_defaults(operation=operation)
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--workbook", type=Path)
     parser.add_argument("--output", type=Path)
@@ -494,18 +497,12 @@ def main() -> int:
 
 
 def render_main() -> int:
-    import sys
-    sys.argv.insert(1, "render")
-    return main()
+    return main("render")
 
 
 def import_main() -> int:
-    import sys
-    sys.argv.insert(1, "import")
-    return main()
+    return main("import")
 
 
 def validate_main() -> int:
-    import sys
-    sys.argv.insert(1, "validate")
-    return main()
+    return main("validate")

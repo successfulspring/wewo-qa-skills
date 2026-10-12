@@ -13,7 +13,7 @@
         "source": "url",
         "url": "https://github.com/successfulspring/wewo-qa-skills.git"
       },
-      "description": "Clarify and confirm requirements, deliver XMind and three Excel suites, then generate and run project-native acceptance tests with evidence.",
+      "description": "Clarify and confirm requirements, deliver XMind and three Excel suites, then prepare independent acceptance automation against a deployed test environment and report evidence.",
       "homepage": "https://github.com/successfulspring/wewo-qa-skills"
     }
   ]

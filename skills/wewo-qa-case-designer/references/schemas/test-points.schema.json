@@ -167,7 +167,8 @@
             "mobile-app",
             "desktop-app",
             "mini-program",
-            "other"
+            "other",
+            "api"
           ]
         },
         "os": {

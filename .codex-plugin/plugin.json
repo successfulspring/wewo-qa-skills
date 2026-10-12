@@ -1,7 +1,7 @@
 {
   "name": "wewo-qa-skills",
-  "version": "0.3.0",
-  "description": "Wewo 测试：先交互澄清并确认需求，生成 XMind 与冒烟/回归/全量三份 Excel，再结合项目源码编写并执行自动化测试",
+  "version": "0.4.0",
+  "description": "Clarify requirements, design XMind test points and Excel cases, then run durable acceptance automation against a deployed test environment and report evidence.",
   "author": {
     "name": "Wewo",
     "url": "https://github.com/successfulspring"
@@ -9,8 +9,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Wewo QA Skills",
-    "shortDescription": "需求澄清、XMind、三份 Excel、代码自动化执行与报告",
-    "longDescription": "Wewo 测试：先交互澄清并确认需求，生成 XMind 与冒烟/回归/全量三份 Excel，再结合项目源码编写并执行自动化测试",
+    "shortDescription": "Requirement clarification, test design, execution and evidence",
+    "longDescription": "Clarify requirements, design XMind test points and Excel cases, then run durable acceptance automation against a deployed test environment and report evidence.",
     "developerName": "Wewo",
     "category": "Productivity",
     "capabilities": [
@@ -19,8 +19,8 @@
     ],
     "websiteURL": "https://github.com/successfulspring/wewo-qa-skills",
     "defaultPrompt": [
-      "先和我逐轮澄清并确认需求，再生成 XMind 和冒烟、回归、全量三份 Excel 测试用例。",
-      "根据已审查 Excel 用例、项目代码和测试环境，复用或编写自动化测试代码，实际运行并输出报告及证据。"
+      "Clarify and confirm my requirements, then generate XMind test points and smoke, regression and full Excel cases.",
+      "Use my reviewed cases and test environment to discover execution needs, write and run reusable acceptance tests in an independent workspace, and deliver an evidence-backed report."
     ]
   }
 }

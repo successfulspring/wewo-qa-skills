@@ -1,29 +1,19 @@
-# Platform reconnaissance and generated tests
+# Live surface discovery and test implementation
 
-Resolve the established project runner before selecting agent control tools. Adapters below help inspect live UI and discover real locators; durable generated tests still execute through the native runner described in [native automation](native-automation.md). Tool-only clicking is not a formal code-execution pass.
+Choose the actual target surface and available supported tools. Discover operations and observation locations from the deployed system and supplied documentation. Product source is not required. Reconnaissance tools help implement durable tests; formal automation still requires running those tests with original evidence.
 
-## Available reconnaissance adapters
+## Browser UI
 
-Read only the section for each selected target.
+Use available browser automation and semantic accessibility/DOM locators. Check that locators identify the correct visible subject and wait for the specified state. Use screenshots for relevant visual checks and failure evidence. General computer control is suitable only when a required surface is inaccessible to browser control, with a justified repeatable adapter.
 
-## Web
+## Interface
 
-Prefer Playwright CLI or Playwright MCP when available. Use structured accessibility snapshots and stable semantic locators before screenshots or raw coordinates. Keep one controlled browser context per isolation boundary, verify navigation and user-visible state, and capture a screenshot or saved snapshot for failures and required pass evidence.
+Use supplied API/interface documentation, authorized specifications or observed requests to identify real endpoints, authentication, payloads and response contracts. Never guess undocumented operations or derive expected behavior from a successful response. Observe the confirmed externally visible result at the required timing; an accepted asynchronous request does not prove completion.
 
-Use general computer control only when browser automation cannot reach a required browser-owned surface such as a native picker, and record the route change.
+Interface setup may support UI journeys without replacing their UI observations. Preserve non-sensitive request/response evidence. The Designer's api route and api target surface allow interface-defined cases to reach this path.
 
-## Android and iOS mobile apps
+## Mobile, desktop and other clients
 
-Execute only when the selected target identifies the OS, build, and device mode, and an authorized mobile automation or device-control capability is available. A simulator/emulator result does not prove real-device behavior when the requirement names physical hardware, sensors, push delivery, permissions, biometrics, camera, or platform services.
+Use the actual installed build, operating system, device/host and available mature automation adapter. Prefer stable accessibility identifiers. Record limitations of emulators/simulators when physical hardware behavior is required. A browser result does not prove a native client or a different OS.
 
-Do not substitute Android execution for iOS or the reverse. Record OS version, device or simulator model, application build, and automation route. If the environment lacks an iOS-capable host/device or required signing/access, mark the iOS pair blocked.
-
-## Windows, macOS, or Linux desktop apps
-
-Distinguish a native desktop client from a website opened on that operating system. Use an authorized desktop automation or computer-control tool and record application build plus OS version. Prefer semantic accessibility identifiers; use coordinates only when stable semantics are unavailable and corroborate the final state.
-
-Do not treat a browser run as evidence for the native client unless the case and project profile explicitly define that equivalence.
-
-## Mini-program or other surfaces
-
-Use only a project-approved host, device, and control capability. Record the host application and version. If no reliable route can perform both the interaction and oracle, mark the pair conditional/blocked or manual/not-run according to the manifest; do not improvise a different platform.
+If the necessary device, host, signing/access or control capability is unavailable, record a specific blocker for that target and continue independent ready pairs. Merely listing a platform does not establish tested support.

@@ -88,6 +88,19 @@ def artifact_set(directory: Path, *, language=None):
     return context, points, manifest, path
 
 
+def seal_synthetic_profile(profile, environment=None):
+    """Synthetic validator fixture only; no real discovery or authorization."""
+    environment = environment or {"name":"Synthetic QA", "kind":"test", "build":"fixture"}
+    for env in profile["environments"]:
+        env.update(environment, entry=environment.get("entry", "synthetic://fixture"), verified=True,
+                   evidence="Synthetic fixture identity, not a live environment check.")
+    for readiness in profile["case_readiness"]:
+        if readiness["status"] != "manual":
+            readiness["status"] = "ready"
+        for check in readiness["checks"]:
+            check.update(status="verified",detail="Synthetic protocol fixture: " + check["area"])
+
+
 def execution_set(directory: Path, suite="smoke", targets=None):
     _, _, manifest, manifest_path = artifact_set(directory)
     targets = targets or ["web-chrome"]
@@ -102,6 +115,7 @@ def execution_set(directory: Path, suite="smoke", targets=None):
             binding["session_ref"] = "synthetic-session-reference"
         else:
             binding["value"] = "synthetic:" + binding["requirement_id"]
+    seal_synthetic_profile(profile)
     write_json(profile_path, profile)
     results = {"schema_version": "1.3", "run": {
         "run_id": "synthetic-run", "manifest_path": Path(os.path.relpath(manifest_path, run_dir)).as_posix(),

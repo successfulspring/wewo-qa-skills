@@ -70,3 +70,5 @@ The case, required-assertion, automation-assessment and usage-guide worksheets a
 Final requirements precede rendering. Show and confirm the XMind before deriving final cases. When presenting an unconfirmed tree for its review, use `--draft --output <root>/test-points.xmind`, with the draft label; after confirmation rerender the same public filename. Do not accumulate public draft files.
 
 Hashes bind context → points → manifest → suite files → run. A source/business change invalidates its confirmation; an Excel edit becomes pending; affected requirements/points need reconfirmation. Validators establish structural consistency, not semantic correctness, actual human authorship or exhaustive coverage.
+
+The execution handoff includes the entire reviewed artifact directory and its baselines. `candidate_route` describes the surface required by the case, not current execution readiness. Use `api` for an interface-defined acceptance target (`surface: api`); do not substitute it for a UI expectation. Executor discovers accounts, data, tools and environment access against the deployed target, without requiring product source.

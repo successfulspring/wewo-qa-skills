@@ -569,6 +569,11 @@ def validate_execution_profile_data(
             errors.append(f"execution profile references out-of-scope target {target_id}")
 
     expected_ids = expected_runtime_requirement_ids(manifest, profile["suite"], profile["targets"])
+    from execution_readiness import validate_readiness
+    errors.extend(validate_readiness(profile, manifest))
+    for item in profile.get("case_readiness", []):
+        if item["status"] != "manual":
+            expected_ids.update(item["runtime_requirement_refs"])
     binding_ids = [item["requirement_id"] for item in profile["bindings"]]
     for duplicate in sorted(_duplicates(binding_ids)):
         errors.append(f"duplicate runtime binding: {duplicate}")
@@ -578,7 +583,7 @@ def validate_execution_profile_data(
     for requirement_id in sorted(actual_ids - expected_ids):
         errors.append(f"unexpected runtime binding for {requirement_id}")
 
-    requirement_by_id = {item["id"]: item for item in manifest["runtime_requirements"]}
+    requirement_by_id = {item["id"]: item for item in manifest["runtime_requirements"] + profile.get("discovered_requirements", [])}
     for binding in profile["bindings"]:
         requirement_id = binding["requirement_id"]
         requirement = requirement_by_id.get(requirement_id)
@@ -659,6 +664,11 @@ def validate_results_data(
             errors.append(f"run references out-of-scope target {target_id}")
 
     if execution_profile is not None:
+        if results["schema_version"] == "1.4":
+            if execution_profile["schema_version"] != "1.2" or run["environments"] != execution_profile.get("environments"):
+                errors.append("result environments differ from the frozen execution profile")
+            elif run["environment"] != {k:execution_profile["environments"][0][k] for k in ("name", "kind", "build")}:
+                errors.append("summary environment differs from its target identity")
         if execution_profile["suite"] != run["suite"]:
             errors.append("execution profile suite does not match result run")
         if set(execution_profile["targets"]) != run_targets:
@@ -700,9 +710,10 @@ def validate_results_data(
             continue
 
         if execution_profile is not None and status in {"passed", "failed", "flaky"}:
+            from execution_readiness import pair_requirements
             unresolved = sorted(
                 requirement_id
-                for requirement_id in runtime_requirement_ids_for_pair(manifest, case, target_id)
+                for requirement_id in pair_requirements(manifest, execution_profile, case, target_id)
                 if binding_status.get(requirement_id) != "resolved"
             )
             if unresolved:
@@ -733,6 +744,23 @@ def validate_results_data(
                 errors.append(f"{case_id}/{target_id}: native receipt missing or changed")
             else:
                 receipt = load_json(receipt_path)
+                if receipt.get("format") == "wewo-qa-native-run/2":
+                    try:
+                        from native_execution import receipt_file
+                        from native_lifecycle import validate_lifecycle_result
+                        if results["schema_version"] != "1.4" or receipt["environments"] != run.get("environments"):
+                            raise ValueError("native environment baseline mismatch")
+                        if receipt["profile_sha256"] != run["execution_profile_sha256"] or receipt["manifest_sha256"] != run["manifest_sha256"]:
+                            raise ValueError("native receipt baseline mismatch")
+                        from execution_readiness import require_ready
+                        require_ready(execution_profile, manifest, case_id, target_id)
+                        binding = next(b for b in receipt["bindings"] if (b["case_id"], b["target_id"]) == (case_id,target_id))
+                        events = [json.loads(line) for line in receipt_file(evidence_base_dir, receipt, "observations").read_text(encoding="utf-8").splitlines()]
+                        validate_lifecycle_result(receipt, events, binding, result)
+                    except (ValueError, KeyError, StopIteration, OSError) as exc:
+                        # Startup failures legitimately have no observation file.
+                        if status in {"passed", "failed", "flaky"} or result.get("lifecycle"):
+                            errors.append(f"{case_id}/{target_id}: {exc}")
                 native_binding = [b for b in receipt["bindings"] if (b["case_id"], b["target_id"]) == (case_id,target_id)]
                 if len(native_binding) != 1 or any(link[k] != native_binding[0][k] for k in ("asset","test_id","route")) or receipt["run_id"] != run["run_id"]:
                     errors.append(f"{case_id}/{target_id}: native mapping differs from the execution receipt")

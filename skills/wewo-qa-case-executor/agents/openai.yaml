@@ -1,7 +1,7 @@
 interface:
   display_name: "Wewo QA Case Executor"
-  short_description: "根据Excel用例与项目代码生成并运行自动化测试，输出证据和报告"
-  default_prompt: "Use $wewo-qa-case-executor to inspect the actual project and test environment, reuse or write durable tests for reviewed automatable Excel cases, execute the native runner and report every planned assertion with original evidence."
+  short_description: "Run reviewed cases against a deployed test environment"
+  default_prompt: "Use $wewo-qa-case-executor with these reviewed cases and this test environment to discover missing access and data, prepare independent automation, run the tests and deliver an evidence-backed report."
 
 policy:
   allow_implicit_invocation: true

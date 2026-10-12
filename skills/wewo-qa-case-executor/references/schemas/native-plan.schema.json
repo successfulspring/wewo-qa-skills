@@ -2,19 +2,17 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "repository",
+    "workspace",
     "runner",
     "argv",
     "manifest_sha256",
     "profile_sha256",
     "report_format",
-    "bindings"
+    "bindings",
+    "schema_version",
+    "support_files"
   ],
   "properties": {
-    "repository": {
-      "type": "string",
-      "minLength": 1
-    },
     "runner": {
       "type": "string",
       "minLength": 1
@@ -53,7 +51,8 @@
           "asset_sha256",
           "test_id",
           "route",
-          "assertion_ids"
+          "assertion_ids",
+          "review"
         ],
         "properties": {
           "case_id": {
@@ -92,10 +91,73 @@
             },
             "uniqueItems": true,
             "minItems": 1
+          },
+          "review": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rerun": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "previous_receipt_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "kind": {
+                "enum": [
+                  "repeat",
+                  "retry",
+                  "test-repair"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reset_note": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "previous_receipt_sha256",
+              "kind",
+              "reason",
+              "reset_note"
+            ]
           }
         }
       },
       "minItems": 1
+    },
+    "schema_version": {
+      "const": "2"
+    },
+    "workspace": {
+      "type": "string",
+      "minLength": 1
+    },
+    "support_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ]
+      }
     }
   }
 }

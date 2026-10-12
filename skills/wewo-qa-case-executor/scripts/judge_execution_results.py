@@ -41,9 +41,28 @@ def judge(results, manifest, base_dir):
         elif any(a["status"] == "failed" for a in result["assertions"]):
             result.update(status="failed", failure_reason="Preserved UI observation differs from the frozen check; inspect linked evidence.")
         elif complete and all(attempts_passed):
-            result["status"] = "passed"
-            result.pop("failure_reason", None)
-            result.pop("blocker", None)
+            blockers = []
+            assessment = next(a for a in case["automation"] if a["target_id"] == result["target_id"])
+            if not set(assessment["required_evidence"]) <= {e["type"] for e in result["evidence"]}:
+                blockers.append("Missing required case-level evidence.")
+            if result.get("native_test"):
+                from native_execution import receipt_file, native_tests
+                from native_lifecycle import lifecycle_for
+                receipt = load_json(base_dir / result["native_test"]["receipt_path"])
+                statuses = native_tests(receipt_file(base_dir, receipt, "report"), receipt["report_format"]).get(result["native_test"]["test_id"], [])
+                if statuses != ["passed"] or receipt.get("timeout"):
+                    blockers.append("Native runner did not pass this case.")
+                if receipt.get("format") == "wewo-qa-native-run/2":
+                    events = [json.loads(line) for line in receipt_file(base_dir, receipt, "observations").read_text(encoding="utf-8").splitlines()]
+                    binding = next(b for b in receipt["bindings"] if (b["case_id"],b["target_id"]) == (result["case_id"],result["target_id"]))
+                    _, issues, _ = lifecycle_for(receipt, events, binding)
+                    blockers.extend(issues)
+            if blockers:
+                result.update(status="blocked", blocker="; ".join(blockers))
+            else:
+                result["status"] = "passed"
+                result.pop("failure_reason", None)
+                result.pop("blocker", None)
         else:
             result.update(status="blocked", blocker=result.get("blocker", "Required checks were interrupted or not evaluated."))
     return candidate
@@ -56,7 +75,7 @@ def main():
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     source, manifest_path = args.results.resolve(), args.manifest.resolve()
-    output = args.output.resolve() if args.output else source.with_name("execution-results.judged.json")
+    output = args.output.resolve() if args.output else source.with_name(source.stem + ".judged.json")
     if output.parent != source.parent or output.suffix != ".json" or output == source or output.name == "execution-profile.json":
         raise ValidationFailure(["judged output must be a separate JSON file in the same run directory"])
     if output.exists():
