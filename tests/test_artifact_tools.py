@@ -13,7 +13,7 @@ sys.path[:0] = [str(ROOT / "tooling/runtime"), str(ROOT / "skills/wewo-qa-case-d
 
 from openpyxl import load_workbook
 from artifact_tools import ValidationFailure, sha256_file, validate_manifest_data, validate_manifest_file, validate_results_data, validate_results_file, validate_execution_profile_data, validate_execution_profile_file, validate_test_points_data
-from artifact_factory import artifact_set, execution_set, write_json, mutate_observation
+from artifact_factory import artifact_set, execution_set, write_json, mutate_observation, seal_synthetic_points, seal_synthetic_cases
 from case_workbook import read_case_workbook, render_case_workbook, validate_case_workbook_file
 from design_context import validate_design_context_data
 from render_execution_report import automatic_gate, render_report
@@ -56,22 +56,23 @@ class ArtifactTests(unittest.TestCase):
             validate_design_context_data(self.context)
 
     def test_material_question_prevents_final_context(self):
-        self.context["open_questions"] = [{"id": "Q-001", "description": "Unresolved business rule", "material": True}]
+        self.context["open_questions"] = [{"id": "Q-001", "unit_id":"RU-001", "impact":"Changes the oracle", "description": "Unresolved business rule", "material": True}]
         with self.assertRaisesRegex(ValidationFailure, "unresolved material"):
             validate_design_context_data(self.context)
         validate_design_context_data(self.context, final=False)
 
     def test_draft_xmind_is_reviewable_but_not_executable(self):
         self.context["review"] = {"status": "draft"}
-        self.context["open_questions"] = [{"id": "Q-001", "description": "Pending scope", "material": True}]
         write_json(self.directory / "design-context.json", self.context)
         self.points["design_context_baseline"]["sha256"] = sha256_file(self.directory / "design-context.json")
+        seal_synthetic_points(self.points)
         write_json(self.directory / "test-points.json", self.points)
         from artifact_tools import validate_test_points_file
         validate_test_points_file(self.directory / "test-points.json", final=False)
         with zipfile.ZipFile(BytesIO(render_xmind_bytes(self.points, draft=True))) as archive:
             self.assertIn("草案（待确认）", archive.read("content.xml").decode())
         self.manifest["test_points_baseline"]["sha256"] = sha256_file(self.directory / "test-points.json")
+        seal_synthetic_cases(self.manifest)
         write_json(self.path, self.manifest)
         with self.assertRaisesRegex(ValidationFailure, "confirmed review|unresolved material"):
             validate_manifest_file(self.path)
@@ -103,6 +104,7 @@ class ArtifactTests(unittest.TestCase):
         for i in range(22):
             branch = {"id": f"TP-GROUP-{i}", "title": f"Business group {i}", "kind": "feature", "status": "confirmed", "requirement_unit_refs": ["RU-001"], "trace_refs": ["SRC-001"], "coverage_item_refs": [], "children": [branch]}
         self.points["tree"]["children"][0]["children"][0] = branch
+        seal_synthetic_points(self.points)
         validate_test_points_data(self.points, self.context)
         for fmt in ("legacy", "zen"):
             with zipfile.ZipFile(BytesIO(render_xmind_bytes(self.points, fmt))) as archive:
@@ -123,6 +125,7 @@ class ArtifactTests(unittest.TestCase):
 
     def test_case_source_anchor_must_be_read(self):
         self.manifest["cases"][0]["source_refs"] = ["SRC-001#unread-invented-section"]
+        seal_synthetic_cases(self.manifest)
         write_json(self.path, self.manifest)
         with self.assertRaisesRegex(ValidationFailure, "case source anchor"):
             validate_manifest_file(self.path)
@@ -199,6 +202,7 @@ class ExcelTests(unittest.TestCase):
 
     def test_multiline_data_and_large_path_metadata_lossless(self):
         self.manifest["cases"][0]["test_data"] = ["row one\nrow two\n", "another item  "]
+        seal_synthetic_cases(self.manifest)
         paths = {f"TP-{i}": "Long business path / " * 100 for i in range(100)}
         (self.directory / "test-cases.full.xlsx").write_bytes(render_case_workbook(self.manifest, sha256_file(self.path), paths, self.context))
         candidate, _, _ = read_case_workbook(self.directory / "test-cases.full.xlsx")

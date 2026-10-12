@@ -16,7 +16,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "1.4"
+      "const": "1.6"
     },
     "generated_at": {
       "type": "string",
@@ -55,6 +55,13 @@
           "items": {
             "$ref": "#/$defs/target"
           }
+        },
+        "output_language": {
+          "enum": [
+            "zh-CN",
+            "en"
+          ],
+          "description": "Delivery language selected from the user preference and clarification conversation; omitted legacy values mean zh-CN."
         }
       }
     },
@@ -90,6 +97,14 @@
         "confirmed_at": {
           "type": "string",
           "format": "date-time"
+        },
+        "response_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "response_text": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -184,6 +199,44 @@
               "scope_refs",
               "description",
               "status"
+            ]
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "case_checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "case_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "snapshot_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "walkthrough": {
+                "type": "string",
+                "minLength": 1
+              },
+              "oracle_basis": {
+                "type": "string",
+                "minLength": 1
+              },
+              "suite_reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "case_id",
+              "snapshot_sha256",
+              "walkthrough",
+              "oracle_basis",
+              "suite_reason"
             ]
           },
           "minItems": 0,
@@ -787,7 +840,8 @@
             "minLength": 1
           },
           "minItems": 1,
-          "uniqueItems": true
+          "uniqueItems": true,
+          "maxItems": 1
         },
         "target_ids": {
           "type": "array",

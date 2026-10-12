@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT/"tooling/runtime"),str(ROOT/"skills/wewo-qa-case-designer/scripts"),str(ROOT/"skills/wewo-qa-case-executor/scripts"),str(ROOT/"tests")]
-from artifact_factory import artifact_set, execution_set, write_json
+from artifact_factory import artifact_set, execution_set, write_json, seal_synthetic_cases
 from artifact_tools import ValidationFailure, sha256_file, validate_results_file
 from case_workbook import render_case_workbooks, read_case_workbook, import_case_workbooks, validate_case_workbooks
 from design_context import validate_design_context_data
@@ -81,6 +81,7 @@ class DeliveryTests(unittest.TestCase):
         self.edit_title("smoke","Reviewed case title")
         merged=import_case_workbooks(self.path)
         merged["review"].update(status="confirmed",reviewed_at=self.manifest["review"]["reviewed_at"],checks=self.manifest["review"]["checks"])
+        seal_synthetic_cases(merged)
         write_json(self.path,merged)
         render_case_workbooks(self.path)
         validate_case_workbooks(self.path)
@@ -112,6 +113,7 @@ sys.exit(data["exit_code"])
         self.case=self.manifest["cases"][0]
         for a in self.case["assertions"]: a["required_evidence"]=["tool-output"]
         self.case["automation"][0]["required_evidence"]=["tool-output"]
+        seal_synthetic_cases(self.manifest)
         write_json(self.path,self.manifest)
         render_case_workbooks(self.path)
         from prepare_execution_profile import build_profile

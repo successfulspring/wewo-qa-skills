@@ -100,6 +100,8 @@ def validate_test_points_data(test_points: Any, context: dict[str, Any] | None =
     targets = test_points["project"]["targets"]
     units = test_points["requirement_units"]
     nodes = list(walk_test_points(test_points["tree"]))
+    from design_review import point_review_errors
+    errors.extend(point_review_errors(test_points, {n["id"] for n in nodes if not n["children"]}))
 
     for label, values in (
         ("source", [item["id"] for item in sources]),
@@ -174,8 +176,16 @@ def validate_test_points_data(test_points: Any, context: dict[str, Any] | None =
     if context is not None:
         from design_context import validate_design_context_data
         validate_design_context_data(context, final=final)
+        from requirement_readiness import readiness_errors, point_decisions, point_units
+        errors.extend(readiness_errors(context, confirmed=True))
+        from requirement_coverage import plan_digest
+        if context["coverage_plan"]["status"] != "frozen" or context["coverage_plan"].get("sha256") != plan_digest(context):
+            errors.append("test points require a frozen, unchanged coverage plan, including for XMind review drafts")
         if any(context["project"][key] != test_points["project"][key] for key in ("name", "artifact_id")):
             errors.append("design context project does not match test points")
+        from artifact_language import output_language
+        if output_language(context) != output_language(test_points):
+            errors.append("project.output_language differs between context and test points")
         context_sources = {item["id"]: item for item in context["sources"]}
         if set(context_sources) != source_ids:
             errors.append("design context source IDs do not match test points")
@@ -183,8 +193,10 @@ def validate_test_points_data(test_points: Any, context: dict[str, Any] | None =
             original = context_sources.get(source["id"], {})
             if any(original.get(key) != value for key, value in source.items()):
                 errors.append(f"{source['id']}: source metadata differs from design context")
-        if context["decisions"] != decisions:
+        if point_decisions(context) != decisions:
             errors.append("test-point decisions differ from design context")
+        if point_units(context) != units:
+            errors.append("test-point requirement units differ from the current business understanding")
         rules = {item["id"]: item for item in context["rules"]}
         leaves = {node["id"]: node for node in nodes if not node["children"]}
         from design_methods import derivation_links
@@ -192,6 +204,15 @@ def validate_test_points_data(test_points: Any, context: dict[str, Any] | None =
         anchors = {f"{s['source_id']}#{s['anchor']}" for s in context["segments"] if s["read_status"] == "read" and s["disposition"] != "excluded"}
         included_sources = {s["id"] for s in context["sources"] if s["scope"] == "included"}
         for node in nodes:
+            if not node["children"]:
+                related = [rules[rid] for rid in node.get("rule_refs", []) if rid in rules]
+                segment_ids = {sid for r in related for sid in r["segment_refs"]}
+                allowed = {ref for r in related for ref in r["decision_refs"]}
+                for s in context["segments"]:
+                    if s["id"] in segment_ids:
+                        allowed.update((s["source_id"], f"{s['source_id']}#{s['anchor']}"))
+                if not set(node["trace_refs"]) <= allowed:
+                    errors.append(node["id"] + ": leaf cites source/decision unrelated to its business rules")
             for trace in node["trace_refs"]:
                 if trace.startswith("SRC-") and _root_reference(trace) not in included_sources:
                     errors.append(f"{node['id']}: trace references excluded source {trace}")
@@ -263,6 +284,8 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
 
     from design_methods import review_errors
     errors.extend(review_errors(manifest["review"], final=final))
+    from design_review import case_review_errors
+    errors.extend(case_review_errors(manifest, final=final))
     if final and (manifest["review"]["status"] != "confirmed" or not manifest["review"].get("reviewed_at")):
         errors.append("case design review is pending; reconcile Excel edits and review before execution")
 
@@ -287,11 +310,15 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
             errors.append(f"{requirement_id}: secret/session collection requires sensitive=true")
 
     leaf_test_point_ids: set[str] = set()
+    leaf_expectations: dict[str, str] = {}
     if test_points is not None:
         validate_test_points_data(test_points)
         for key in ("name", "artifact_id", "requirement", "baseline"):
             if manifest["project"][key] != test_points["project"][key]:
                 errors.append(f"project.{key} does not match test-points.json")
+        from artifact_language import output_language
+        if output_language(manifest) != output_language(test_points):
+            errors.append("project.output_language does not match test-points.json")
         if {item["id"] for item in sources} != {item["id"] for item in test_points["sources"]}:
             errors.append("manifest source IDs do not match test-points.json")
         if {item["id"] for item in decisions} != {item["id"] for item in test_points["decisions"]}:
@@ -315,6 +342,7 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
         leaf_test_point_ids = {
             node["id"] for node in walk_test_points(test_points["tree"]) if not node["children"]
         }
+        leaf_expectations = {node["id"]: node["verification"]["expected"] for node in walk_test_points(test_points["tree"]) if not node["children"] and "verification" in node}
 
     for decision in decisions:
         if decision["status"] == "assumed" and not decision.get("rationale", "").strip():
@@ -382,6 +410,10 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
         if asserted_points != set(case["test_point_refs"]):
             errors.append(f"{case_id}: planned assertions must exactly cover case test-point references")
         for assertion in assertions.values():
+            if final and test_points is not None:
+                for pid in assertion["test_point_refs"]:
+                    if pid in leaf_expectations and assertion["expected"] != leaf_expectations[pid]:
+                        errors.append(f"{case_id}/{assertion['id']}: assertion expectation differs from confirmed leaf {pid}; reconcile the business baseline before final export")
             from observation_checks import check_errors
             errors.extend(f"{case_id}/{assertion['id']}: {e}" for e in check_errors(assertion["check"]))
             if not set(assertion["target_ids"]) <= applicable:

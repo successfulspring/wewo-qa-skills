@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.2",
+  "schema_version": "1.4",
   "generated_at": "2026-09-04T09:55:00+08:00",
   "project": {
     "name": "示例会员系统",
@@ -82,7 +82,7 @@
       "id": "RU-002",
       "title": "连续登录失败保护",
       "source_refs": [
-        "SRC-001#安全策略"
+        "SRC-001#安全保护"
       ],
       "status": "confirmed",
       "understanding": "连续失败达到阈值后临时锁定账号。",
@@ -114,7 +114,7 @@
         "children": [
           {
             "id": "TP-LOGIN-SUCCESS",
-            "title": "有效账号登录后显示会员首页和昵称",
+            "title": "测试环境可用 → Member home is visible",
             "kind": "flow",
             "status": "confirmed",
             "requirement_unit_refs": [
@@ -131,15 +131,42 @@
             "verification": {
               "condition": "测试环境可用",
               "action": "打开登录入口并输入有效会员账号和密码后提交",
-              "expected": "登录页结束加载并进入会员首页，页面显示该账号的会员昵称"
+              "expected": "Member home is visible"
             },
             "coverage_item_refs": [
               "COV-LOGIN-001"
-            ]
+            ],
+            "outcome_ref": "OUT-LOGIN-HOME"
+          },
+          {
+            "id": "TP-LOGIN-NICKNAME",
+            "title": "测试环境可用 → Nickname matches selected member",
+            "kind": "flow",
+            "status": "confirmed",
+            "requirement_unit_refs": [
+              "RU-001"
+            ],
+            "trace_refs": [
+              "SRC-001#正常登录流程"
+            ],
+            "automation_candidate": true,
+            "children": [],
+            "rule_refs": [
+              "RULE-LOGIN-001"
+            ],
+            "verification": {
+              "condition": "测试环境可用",
+              "action": "打开登录入口并输入有效会员账号和密码后提交",
+              "expected": "Nickname matches selected member"
+            },
+            "coverage_item_refs": [
+              "COV-LOGIN-001"
+            ],
+            "outcome_ref": "OUT-LOGIN-NICKNAME"
           },
           {
             "id": "TP-LOGIN-LOCKOUT",
-            "title": "连续失败五次后锁定账号十五分钟",
+            "title": "存在专用且未锁定的会员测试账号 → 第五次失败后显示账号已锁定 15 分钟",
             "kind": "state",
             "status": "confirmed",
             "requirement_unit_refs": [
@@ -156,15 +183,42 @@
             "verification": {
               "condition": "存在专用且未锁定的会员测试账号",
               "action": "连续五次输入错误密码并提交",
-              "expected": "第五次失败后显示账号已锁定 15 分钟，继续提交不会进入会员首页"
+              "expected": "第五次失败后显示账号已锁定 15 分钟"
             },
             "coverage_item_refs": [
               "COV-LOGIN-002"
-            ]
+            ],
+            "outcome_ref": "OUT-LOGIN-LOCKOUT"
+          },
+          {
+            "id": "TP-LOGIN-LOCKED-RETRY",
+            "title": "专用账号已锁定且仍处于已确认的15分钟锁定期 → 锁定期间继续提交后不会进入会员首页",
+            "kind": "state",
+            "status": "confirmed",
+            "requirement_unit_refs": [
+              "RU-002"
+            ],
+            "trace_refs": [
+              "DEC-001"
+            ],
+            "automation_candidate": true,
+            "children": [],
+            "rule_refs": [
+              "RULE-LOGIN-002"
+            ],
+            "verification": {
+              "condition": "专用账号已锁定且仍处于已确认的15分钟锁定期",
+              "action": "继续提交登录",
+              "expected": "锁定期间继续提交后不会进入会员首页"
+            },
+            "coverage_item_refs": [
+              "COV-LOGIN-LOCKED-RETRY"
+            ],
+            "outcome_ref": "OUT-LOGIN-LOCKED-RETRY"
           },
           {
             "id": "TP-LOGIN-PASSWORD-REQUIRED",
-            "title": "密码为空时阻止提交并显示必填提示",
+            "title": "登录页可访问 → 密码输入框显示必填提示",
             "kind": "negative",
             "status": "confirmed",
             "requirement_unit_refs": [
@@ -181,11 +235,64 @@
             "verification": {
               "condition": "登录页可访问",
               "action": "输入会员账号、保持密码为空并尝试提交",
-              "expected": "密码输入框显示必填提示，页面停留在登录页且不会建立登录会话"
+              "expected": "密码输入框显示必填提示"
             },
             "coverage_item_refs": [
               "COV-LOGIN-003"
-            ]
+            ],
+            "outcome_ref": "OUT-LOGIN-REQUIRED"
+          },
+          {
+            "id": "TP-LOGIN-STAY",
+            "title": "登录页可访问 → 页面停留在登录页",
+            "kind": "negative",
+            "status": "confirmed",
+            "requirement_unit_refs": [
+              "RU-001"
+            ],
+            "trace_refs": [
+              "SRC-001#输入校验"
+            ],
+            "automation_candidate": true,
+            "children": [],
+            "rule_refs": [
+              "RULE-LOGIN-003"
+            ],
+            "verification": {
+              "condition": "登录页可访问",
+              "action": "输入会员账号、保持密码为空并尝试提交",
+              "expected": "页面停留在登录页"
+            },
+            "coverage_item_refs": [
+              "COV-LOGIN-003"
+            ],
+            "outcome_ref": "OUT-LOGIN-STAY"
+          },
+          {
+            "id": "TP-LOGIN-NOSESSION",
+            "title": "登录页可访问 → 不会建立登录会话",
+            "kind": "negative",
+            "status": "confirmed",
+            "requirement_unit_refs": [
+              "RU-001"
+            ],
+            "trace_refs": [
+              "SRC-001#输入校验"
+            ],
+            "automation_candidate": true,
+            "children": [],
+            "rule_refs": [
+              "RULE-LOGIN-003"
+            ],
+            "verification": {
+              "condition": "登录页可访问",
+              "action": "输入会员账号、保持密码为空并尝试提交",
+              "expected": "不会建立登录会话"
+            },
+            "coverage_item_refs": [
+              "COV-LOGIN-003"
+            ],
+            "outcome_ref": "OUT-LOGIN-NOSESSION"
           }
         ],
         "coverage_item_refs": []
@@ -195,6 +302,20 @@
   },
   "design_context_baseline": {
     "path": "design-context.json",
-    "sha256": "0d0c8ed5f0eb0d34fa23d79fc0601543867b12f02c8c8ae78a9fc133dbe5f501"
+    "sha256": "b130242704183bcbddde9b7418796c60379bd72b1ba5f37198b18334cc7f583f"
+  },
+  "design_review": {
+    "snapshot_sha256": "eb59559378e5c655514f7bf6d2cbc039c231b0f7a61cfa50e81b0eb95b7d69e1",
+    "checked_leaf_refs": [
+      "TP-LOGIN-SUCCESS",
+      "TP-LOGIN-NICKNAME",
+      "TP-LOGIN-LOCKOUT",
+      "TP-LOGIN-LOCKED-RETRY",
+      "TP-LOGIN-PASSWORD-REQUIRED",
+      "TP-LOGIN-STAY",
+      "TP-LOGIN-NOSESSION"
+    ],
+    "atomicity_note": "Synthetic fixture: separate home visibility, nickname, rejection and retained-state observations; not a real product review.",
+    "visible_path_note": "Synthetic fixture: visible paths identify selected login conditions and independent results; no claim of complete login coverage."
   }
 }

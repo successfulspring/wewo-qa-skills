@@ -1,86 +1,47 @@
 # Progressive requirement dialogue
 
-Use this procedure for every requirement unit after building the whole-business draft in [design context](design-context.md). Order units by shared prerequisites and object/flow dependencies, not only by document or page order. The goal is for the tester and the agent to build the same understanding before producing test artifacts.
+Use this procedure after building the whole-business draft in [design context](design-context.md). Discuss shared prerequisites before dependent behavior. The goal is a shared, testable business understanding; the number of rounds or questions does not determine completion.
 
-## One conversational round
+## One business topic per round
 
-Present these sections in order:
+Choose the unresolved topic with the greatest effect on scope, behavior or expected results. Explain the relevant source fact and current understanding briefly, then ask the related questions. Use natural, concise prose; source/background/impact are useful context, not five mandatory headings. Do not repeat the whole model or a status table every turn. Make corrections to stated facts easy.
 
-1. **Source slice** — identify the source anchor and summarize only the current unit.
-2. **Plain-language explanation** — explain the user-visible flow and why it matters without assuming product knowledge.
-3. **Current understanding** — separate explicit facts from interpretations. Identify actors, preconditions, triggers, rules, state changes, visible outcomes, and applicable targets.
-4. **Business understanding delta** — show changed rules; affected objects, states and data; upstream prerequisites; downstream modules and existing flows; and what must stay unchanged. Name the source or decision supporting each effect. Do not generate test artifacts here.
-5. **Clarification batch** — ask the related questions that materially affect this unit.
+Usually ask 2–5 closely related questions that can be answered together. This is a readability preference, never a quota or limit. Ask one when other questions depend on that answer; split a large topic. Do not mix independent modules or ask the user to rediscover facts already explicit in readable sources.
 
-Wait for the batch response. Then present:
+After each actual answer, reconcile it with the sources, update the affected understanding and inspect newly unlocked consequences. Briefly reflect consequential decisions/corrections and remaining uncertainty before the next topic. Propagate a shared rule to its consumers rather than asking it independently in each module. Continue independent topics while an owner answer is pending, keeping dependent outcomes open.
 
-- decisions confirmed or corrected;
-- assumptions the user explicitly accepted;
-- unanswered or contradictory items;
-- business rules and dependencies added, changed or reopened;
-- the next unit only after the current unit is closed.
+Follow the user's conversational language and maintain the [delivery language](artifact-contract.md#delivery-language) accordingly. A sustained English clarification can establish English delivery despite Chinese source material; an isolated quoted phrase does not change the selection. Preserve exact questions/replies in their original language when recording evidence.
 
-## Batch construction
+## Questions and answers
 
-- Put only questions sharing the current business context in one batch. Do not mix unrelated modules merely to reach a target count.
-- Default to 3–6 material questions when available. If fewer exist, ask fewer; never create filler questions. Do not send serial one-question turns when several related unknowns are already known.
-- Cover both understanding and ambiguity: the user may correct stated facts as well as choose resolutions for missing rules.
-- Do not ask the user to rediscover facts already explicit in the source. Present those as current understanding and make correction easy.
-- Ask about a common rule once, then show where the answer propagates. If its answer changes a previously discussed module, reopen that module's affected facts and obtain the needed correction before final confirmation.
-- Split a large unit before sending a long questionnaire.
+- Give a new question a readable stable ID such as `Q1.1` or `Q1.2` (initial round and question). Keep that ID when following up the same decision in a later round; a newly discovered decision gets a new ID. Preserve existing IDs such as `Q-RU001-01` when resuming older work.
+- Choose the answer form that fits the uncertainty. Use 2–4 lettered options only when meaningful alternatives are known, label single/multiple selection and ensure combinations make sense. Otherwise ask an open question, especially for an unknown flow, ownership rule or exception. Always accept a free-form answer.
+- Recommend an option only when source evidence, a confirmed rule or an explained tradeoff supports it. State that basis and the material consequence. When the product rule is unknown, omit the recommendation; record the question for the responsible owner instead of inventing a safest testing default. Industry convention is not a confirmed product rule.
+- Accept compact replies such as `Q1.1-B, Q1.2-A+C`. Free-form corrections take precedence over proposed options. “Follow all recommendations” applies only to unambiguous recommendations actually displayed in the referenced batch, not open questions, unrecommended choices, future consequences or final requirement confirmation.
+- A partial reply resolves only its addressed questions. If its scope or meaning is ambiguous, clarify that part and keep the rest of the topic moving. “I don't know”, “not my decision” and silence leave the question pending; identify the owner or requested evidence without repeatedly asking the same person to guess.
+- If a previous question needs narrower wording, a changed option or a corrected answer, reuse its ID and append a new question event linked to the prior occurrence. Do not overwrite the old wording or reassign the ID to another decision. Decisions must cite the actual reply to the applicable occurrence; a prior answer cannot close a renewed question.
 
-## Question contract
+When an answer establishes that an operation is allowed, inspect which consequences are still unknown: the affected entity's resulting state, related entities or associations, data changes and observable completion. Ask only about relationships supported by the current requirement. Do not infer those consequences from permission to perform the operation. Separate newly discovered decisions into related questions that can be answered together; defer any question whose premise remains unresolved.
 
-Give every question a stable ID such as `Q-RU001-01` and include:
+## Expand, reconcile and checkpoint
 
-```markdown
-### Q-RU001-01（单选）：未登录用户点击“立即购买”后如何处理？
+For every material answer, follow its effects on actors/ownership, states, data, rejection/partial success, upstream prerequisites, downstream consumers and observable acceptance. Record a branch review even when no new material branch arises, with a reason. Add new unknowns with their parent decision and business impact. Expand product behavior relevant to this requirement, not hypothetical storage, API or implementation choices.
 
-背景：当前片段只描述了登录用户的购买流程。
+When a rule changes, retain the prior decision as superseded with its replacement ID, update every consumer and reopen affected units. Remove contradicted facts from active understanding while preserving their history. Existing source facts need another question only when new evidence or a conflict warrants it. Accepting an unresolved risk does not create a test oracle: clarify it or explicitly narrow the final scope and disclose the lost coverage.
 
-影响：答案会改变登录拦截、购物车保留和结算流程的测试点。
+At a meaningful topic boundary, or after a correction changes several modules, show a compact consolidation of the business rules and unresolved consequences so the user can correct it. Use a table only if it improves readability. These checkpoints do not require separate approval of every fact. Before proposing final confirmation, run all three [pre-summary audits](requirement-readiness.md#three-audits-before-the-final-summary), resolve material gaps, then present the consolidated requirements and request explicit confirmation. Module approval and individual answers do not replace that confirmation.
 
-A. 立即跳转登录页
-B. 可以进入结算页，提交订单前要求登录
-C. 支持游客完成下单
-D. 当前版本不允许未登录用户进入商品详情页
+## Record and resume
 
-推荐：A
-依据：它与来源中的登录前置条件最一致；这是临时建议，不代表已确认规则。
+Keep canonical units, exact visible exchanges, parsed decisions, branch reviews and open questions in `design-context.json`, following [requirement readiness](requirement-readiness.md). No test-point tree or separate Markdown history is needed during discovery. Later `test-points.json` projects current units/decisions instead of maintaining another understanding.
 
-也可以不选以上答案，直接说明实际规则。
-```
+Preserve actual question/options/recommendation text and raw replies separately from interpretations. One reply addressing several questions or earlier batches is one event, referenced by all resulting decisions. Record only the questions actually addressed; unanswered items stay open. Unsolicited explicit user requirements may be anchored source segments with the actual message reference instead of an invented question. Save no private reasoning or credentials; use redaction markers and actual references for secrets.
 
-Use 2–4 meaningful options, normally lettered `A` through `D`. State `单选` or `多选`. For multiple selection, make option combinations logically valid.
+Synchronize state after each actual exchange, before the next batch. A prepared question is a draft, not evidence that it was displayed: keep unsent text out of `dialogue_events`. On interruption/resume:
 
-The recommendation must cite one of these bases:
+1. Read the saved context and reconcile it with available actual messages and current sources. Reuse the same event ID for an exchange already recorded; append missing verifiable events in actual chronological order. A retry must not duplicate a reply or turn a saved draft into a displayed question.
+2. Prefer the host's actual message ID. If unavailable, use a local reference that distinguishes role, conversation/round and occurrence; preserve exact text. Identical words in different actual replies are different events. Do not invent platform IDs or fabricate inaccessible history.
+3. Reconcile partial/late answers, corrections and open branches before choosing the next topic. Restore pending questions without restarting completed topics. If the last question was truly displayed and unanswered, continue that pending question instead of silently treating it as resolved or needlessly issuing another batch.
+4. Treat historical conclusions as leads. Compare current project, version, scope and authority; generated files and old “confirmed” flags are not new approval. If essential history is missing, explain the specific gap, reuse verifiable facts and obtain the missing clarification/confirmation. Preserve original history; update active conclusions and stale downstream gates.
 
-- explicit source evidence;
-- consistency with another confirmed rule;
-- lower product or release risk;
-- a clearly labeled provisional assumption pending the responsible owner.
-
-Never present an industry convention as a confirmed Wewo rule. When no defensible product recommendation exists, recommend obtaining owner confirmation and state the safest provisional testing assumption separately.
-
-Accept compact replies such as `Q1-B，Q2-A+C` and free-form corrections. A free-form answer overrides the proposed options. If an answer changes a previously confirmed unit, reopen it and show downstream test-point changes.
-
-## Module checkpoint
-
-At the end of a module, show its consolidated business understanding and a compact status table:
-
-| 项目 | 状态 |
-| --- | --- |
-| 来源事实 | 已确认/有冲突 |
-| 澄清问题 | 已回答/待回答 |
-| 假设 | 无/已披露 |
-| 业务理解 | 已理解/待澄清 |
-
-The user may approve the whole module, correct individual items, or provide new information. Module confirmation is not the final requirement confirmation. After all modules, present the consolidated final requirements, ask for explicit confirmation, preserve the actual response/ref/digest, and only then derive XMind points.
-
-## Persistent understanding
-
-Maintain unit status/understanding in `test-points.json`; preserve decisions with question ID, selected options/free-text resolution, rationale and impacted rule/point IDs in the business model. Keep accepted assumptions and remaining material questions visible. Do not require a separate Markdown walkthrough.
-
-The whole-business draft establishes dependencies before these rounds. A changed answer may reopen a rule in another module; show the downstream rule/flow/relationship changes before any test-point revision. Do not ask for an answer to a rule already explicit in a readable source. Historical decisions are leads only: compare project, version, object, scope and original authority; similar wording or a remembered formatting preference cannot confirm today's business rule. A module checkpoint is a correction opportunity, while the final requirement summary and later XMind baseline each need their own explicit confirmation.
-
-Do not use test-point rendering to bypass requirement dialogue. Final requirements, XMind review and case review are distinct states. Keep unanswered material facts in `open_questions`; silence and generated notes never constitute confirmation.
+Final requirements, XMind review and case review are distinct states. Keep unanswered material facts visible and do not use draft rendering to bypass dialogue or confirmation.

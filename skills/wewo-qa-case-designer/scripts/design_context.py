@@ -10,6 +10,7 @@ from artifact_tools import (
     DESIGNER_SCHEMA_ROOT, ValidationFailure, _duplicates, load_json, schema_errors,
 )
 from design_methods import derivation_errors, review_errors
+from requirement_coverage import extraction_errors, plan_errors, source_audit_errors
 
 
 DIMENSIONS = {"positive", "negative", "boundary", "state", "role", "cross-object"}
@@ -17,8 +18,10 @@ DIMENSIONS = {"positive", "negative", "boundary", "state", "role", "cross-object
 
 def requirement_digest(context):
     """Confirmation covers business facts, independently of later test derivation."""
-    snapshot = {k: context[k] for k in ("project", "sources", "segments", "decisions", "objects", "relationships", "flows")}
-    snapshot["rules"] = [{k:v for k,v in r.items() if k not in {"coverage", "design_models"}} for r in context["rules"]]
+    snapshot = {k: context[k] for k in ("project", "sources", "segments", "decisions", "objects", "relationships", "flows", "requirement_items", "requirement_units", "open_questions", "branch_reviews")}
+    # Summary/confirmation events refer to this digest, so cannot be its inputs.
+    snapshot["dialogue_events"] = [e for e in context["dialogue_events"] if e["kind"] in {"question", "answer"}]
+    snapshot["rules"] = [{k:v for k,v in r.items() if k not in {"coverage", "design_models", "factors"}} for r in context["rules"]]
     return hashlib.sha256(json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
@@ -95,7 +98,7 @@ def validate_design_context_data(context: Any, *, final: bool = True) -> None:
             if oid not in objects:
                 errors.append(f"{rid}: unknown business object {oid}")
         dims = [c["dimension"] for c in rule["coverage"]]
-        if set(dims) != DIMENSIONS or len(dims) != len(set(dims)):
+        if (final or dims) and (set(dims) != DIMENSIONS or len(dims) != len(set(dims))):
             errors.append(f"{rid}: assess each coverage dimension exactly once")
         for coverage in rule["coverage"]:
             if coverage["applicability"] == "not-applicable":
@@ -106,7 +109,7 @@ def validate_design_context_data(context: Any, *, final: bool = True) -> None:
         if rule["kind"] == "transition":
             transition = rule.get("transition")
             has_matrix = any(m["method"] == "state-transition" for m in rule["design_models"])
-            if not transition and not has_matrix:
+            if final and not transition and not has_matrix:
                 errors.append(f"{rid}: transition rule requires its object/states or a concrete state-transition matrix")
             elif transition:
                 business_object = objects.get(transition["object_ref"])
@@ -124,17 +127,17 @@ def validate_design_context_data(context: Any, *, final: bool = True) -> None:
         for rid in item["rule_refs"]:
             if rid not in rules or rules[rid]["status"] == "excluded":
                 errors.append(f"{item['id']}: unknown or excluded rule {rid}")
+    from requirement_readiness import dialogue_errors, readiness_errors
+    errors.extend(readiness_errors(context, confirmed=True) if final else dialogue_errors(context))
     if final:
-        confirmation = context["requirement_confirmation"]
-        if confirmation["status"] != "confirmed" or not all(confirmation.get(k) for k in ("confirmed_at", "response_ref", "response_text", "snapshot_sha256")):
-            errors.append("requirements need explicit user confirmation with the actual response before final test points")
-        elif confirmation["snapshot_sha256"] != requirement_digest(context):
-            errors.append("confirmed requirement facts changed; discuss and reconfirm requirements")
         if context["review"]["status"] != "confirmed" or not context["review"].get("confirmed_at"):
             errors.append("design context requires confirmed review and timestamp")
         if any(q["material"] for q in context["open_questions"]):
             errors.append("design context has unresolved material questions")
     errors.extend(derivation_errors(context, final=final))
+    errors.extend(extraction_errors(context, final=final))
+    errors.extend(plan_errors(context, final=final))
+    errors.extend(source_audit_errors(context, final=final))
     errors.extend(review_errors(context["review"], final=final))
     if errors:
         raise ValidationFailure(errors)

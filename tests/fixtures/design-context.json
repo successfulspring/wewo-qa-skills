@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.2",
+  "schema_version": "1.4",
   "generated_at": "2026-09-04T09:55:00+08:00",
   "project": {
     "name": "示例会员系统",
@@ -59,7 +59,8 @@
       "topic": "连续失败后的行为",
       "resolution": "连续输错 5 次后锁定账号 15 分钟",
       "status": "confirmed",
-      "rationale": "产品负责人选择 B 并确认"
+      "rationale": "产品负责人选择 B 并确认",
+      "response_event_ref": "EVT-ANSWER-001"
     }
   ],
   "objects": [],
@@ -84,38 +85,64 @@
           "dimension": "positive",
           "applicability": "required",
           "test_point_refs": [
-            "TP-LOGIN-SUCCESS"
-          ]
+            "TP-LOGIN-SUCCESS",
+            "TP-LOGIN-NICKNAME"
+          ],
+          "basis_refs": [
+            "REQ-LOGIN-1-1",
+            "REQ-LOGIN-1-2"
+          ],
+          "reason": "Synthetic observation benchmark for 有效账号登录后显示会员首页和昵称: verify this selected success/rejection outcome."
         },
         {
           "dimension": "negative",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 有效账号登录后显示会员首页和昵称: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-1-1",
+            "REQ-LOGIN-1-2"
+          ]
         },
         {
           "dimension": "boundary",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 有效账号登录后显示会员首页和昵称: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-1-1",
+            "REQ-LOGIN-1-2"
+          ]
         },
         {
           "dimension": "state",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 有效账号登录后显示会员首页和昵称: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-1-1",
+            "REQ-LOGIN-1-2"
+          ]
         },
         {
           "dimension": "role",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 有效账号登录后显示会员首页和昵称: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-1-1",
+            "REQ-LOGIN-1-2"
+          ]
         },
         {
           "dimension": "cross-object",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 有效账号登录后显示会员首页和昵称: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-1-1",
+            "REQ-LOGIN-1-2"
+          ]
         }
       ],
       "design_models": [
@@ -135,12 +162,37 @@
               "setup": "Use the synthetic test account and data described by the case.",
               "disposition": "required",
               "test_point_refs": [
-                "TP-LOGIN-SUCCESS"
+                "TP-LOGIN-SUCCESS",
+                "TP-LOGIN-NICKNAME"
+              ],
+              "requirement_refs": [
+                "REQ-LOGIN-1-1",
+                "REQ-LOGIN-1-2"
+              ],
+              "factor_values": {},
+              "outcomes": [
+                {
+                  "id": "OUT-LOGIN-HOME",
+                  "subject": "Selected member",
+                  "observable": "Member home",
+                  "expected": "Member home is visible"
+                },
+                {
+                  "id": "OUT-LOGIN-NICKNAME",
+                  "subject": "Selected member",
+                  "observable": "Home header",
+                  "expected": "Nickname matches selected member"
+                }
               ]
             }
           ]
         }
-      ]
+      ],
+      "requirement_refs": [
+        "REQ-LOGIN-1-1",
+        "REQ-LOGIN-1-2"
+      ],
+      "factors": []
     },
     {
       "id": "RULE-LOGIN-002",
@@ -161,39 +213,71 @@
         {
           "dimension": "positive",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 连续失败五次后锁定账号十五分钟: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-2-1",
+            "REQ-LOGIN-2-2",
+            "REQ-LOGIN-DECISION"
+          ]
         },
         {
           "dimension": "negative",
           "applicability": "required",
           "test_point_refs": [
-            "TP-LOGIN-LOCKOUT"
-          ]
+            "TP-LOGIN-LOCKOUT",
+            "TP-LOGIN-LOCKED-RETRY"
+          ],
+          "basis_refs": [
+            "REQ-LOGIN-2-1",
+            "REQ-LOGIN-2-2",
+            "REQ-LOGIN-DECISION"
+          ],
+          "reason": "Synthetic observation benchmark for 连续失败五次后锁定账号十五分钟: verify this selected success/rejection outcome."
         },
         {
           "dimension": "boundary",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 连续失败五次后锁定账号十五分钟: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-2-1",
+            "REQ-LOGIN-2-2",
+            "REQ-LOGIN-DECISION"
+          ]
         },
         {
           "dimension": "state",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 连续失败五次后锁定账号十五分钟: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-2-1",
+            "REQ-LOGIN-2-2",
+            "REQ-LOGIN-DECISION"
+          ]
         },
         {
           "dimension": "role",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 连续失败五次后锁定账号十五分钟: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-2-1",
+            "REQ-LOGIN-2-2",
+            "REQ-LOGIN-DECISION"
+          ]
         },
         {
           "dimension": "cross-object",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 连续失败五次后锁定账号十五分钟: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-2-1",
+            "REQ-LOGIN-2-2",
+            "REQ-LOGIN-DECISION"
+          ]
         }
       ],
       "design_models": [
@@ -209,16 +293,63 @@
               ],
               "condition": "存在专用且未锁定的会员测试账号",
               "action": "连续五次输入错误密码并提交",
-              "expected": "第五次失败后显示账号已锁定 15 分钟，继续提交不会进入会员首页",
+              "expected": "第五次失败后显示账号已锁定 15 分钟",
               "setup": "Use the synthetic test account and data described by the case.",
               "disposition": "required",
               "test_point_refs": [
                 "TP-LOGIN-LOCKOUT"
+              ],
+              "requirement_refs": [
+                "REQ-LOGIN-2-1",
+                "REQ-LOGIN-2-2",
+                "REQ-LOGIN-DECISION"
+              ],
+              "factor_values": {},
+              "outcomes": [
+                {
+                  "id": "OUT-LOGIN-LOCKOUT",
+                  "subject": "Dedicated member",
+                  "observable": "Login lockout message",
+                  "expected": "第五次失败后显示账号已锁定 15 分钟"
+                }
+              ]
+            },
+            {
+              "id": "COV-LOGIN-LOCKED-RETRY",
+              "dimensions": [
+                "negative"
+              ],
+              "condition": "专用账号已锁定且仍处于已确认的15分钟锁定期",
+              "action": "继续提交登录",
+              "expected": "锁定期间继续提交后不会进入会员首页",
+              "setup": "Use the synthetic test account and data described by the case.",
+              "disposition": "required",
+              "test_point_refs": [
+                "TP-LOGIN-LOCKED-RETRY"
+              ],
+              "requirement_refs": [
+                "REQ-LOGIN-2-2",
+                "REQ-LOGIN-DECISION"
+              ],
+              "factor_values": {},
+              "outcomes": [
+                {
+                  "id": "OUT-LOGIN-LOCKED-RETRY",
+                  "subject": "Dedicated member",
+                  "observable": "Login/home interface",
+                  "expected": "锁定期间继续提交后不会进入会员首页"
+                }
               ]
             }
           ]
         }
-      ]
+      ],
+      "requirement_refs": [
+        "REQ-LOGIN-2-1",
+        "REQ-LOGIN-2-2",
+        "REQ-LOGIN-DECISION"
+      ],
+      "factors": []
     },
     {
       "id": "RULE-LOGIN-003",
@@ -237,39 +368,72 @@
         {
           "dimension": "positive",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 密码为空时阻止提交并显示必填提示: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-3-1",
+            "REQ-LOGIN-3-2",
+            "REQ-LOGIN-3-3"
+          ]
         },
         {
           "dimension": "negative",
           "applicability": "required",
           "test_point_refs": [
-            "TP-LOGIN-PASSWORD-REQUIRED"
-          ]
+            "TP-LOGIN-PASSWORD-REQUIRED",
+            "TP-LOGIN-STAY",
+            "TP-LOGIN-NOSESSION"
+          ],
+          "basis_refs": [
+            "REQ-LOGIN-3-1",
+            "REQ-LOGIN-3-2",
+            "REQ-LOGIN-3-3"
+          ],
+          "reason": "Synthetic observation benchmark for 密码为空时阻止提交并显示必填提示: verify this selected success/rejection outcome."
         },
         {
           "dimension": "boundary",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 密码为空时阻止提交并显示必填提示: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-3-1",
+            "REQ-LOGIN-3-2",
+            "REQ-LOGIN-3-3"
+          ]
         },
         {
           "dimension": "state",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 密码为空时阻止提交并显示必填提示: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-3-1",
+            "REQ-LOGIN-3-2",
+            "REQ-LOGIN-3-3"
+          ]
         },
         {
           "dimension": "role",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 密码为空时阻止提交并显示必填提示: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-3-1",
+            "REQ-LOGIN-3-2",
+            "REQ-LOGIN-3-3"
+          ]
         },
         {
           "dimension": "cross-object",
           "applicability": "not-applicable",
-          "reason": "This synthetic fixture scopes a single observable rule outcome, not a complete login feature design.",
-          "test_point_refs": []
+          "reason": "Synthetic observation benchmark for 密码为空时阻止提交并显示必填提示: Other variants of this dimension are outside this explicitly limited maintenance fixture, not a claim about full login coverage.",
+          "test_point_refs": [],
+          "basis_refs": [
+            "REQ-LOGIN-3-1",
+            "REQ-LOGIN-3-2",
+            "REQ-LOGIN-3-3"
+          ]
         }
       ],
       "design_models": [
@@ -289,12 +453,46 @@
               "setup": "Use the synthetic test account and data described by the case.",
               "disposition": "required",
               "test_point_refs": [
-                "TP-LOGIN-PASSWORD-REQUIRED"
+                "TP-LOGIN-PASSWORD-REQUIRED",
+                "TP-LOGIN-STAY",
+                "TP-LOGIN-NOSESSION"
+              ],
+              "requirement_refs": [
+                "REQ-LOGIN-3-1",
+                "REQ-LOGIN-3-2",
+                "REQ-LOGIN-3-3"
+              ],
+              "factor_values": {},
+              "outcomes": [
+                {
+                  "id": "OUT-LOGIN-REQUIRED",
+                  "subject": "Password field",
+                  "observable": "Login validation message",
+                  "expected": "密码输入框显示必填提示"
+                },
+                {
+                  "id": "OUT-LOGIN-STAY",
+                  "subject": "Login screen",
+                  "observable": "Current screen",
+                  "expected": "页面停留在登录页"
+                },
+                {
+                  "id": "OUT-LOGIN-NOSESSION",
+                  "subject": "Selected member",
+                  "observable": "Session status",
+                  "expected": "不会建立登录会话"
+                }
               ]
             }
           ]
         }
-      ]
+      ],
+      "requirement_refs": [
+        "REQ-LOGIN-3-1",
+        "REQ-LOGIN-3-2",
+        "REQ-LOGIN-3-3"
+      ],
+      "factors": []
     }
   ],
   "open_questions": [],
@@ -307,13 +505,257 @@
       "executability",
       "oracle-consistency"
     ],
-    "findings": []
+    "findings": [],
+    "plan_sha256": "a2cf70449d0e23393b7ecded48cc8668ac521d79eab7e113d454541ed123af46",
+    "source_checks": [
+      {
+        "origin_ref": "SEG-001-001",
+        "content_sha256": "0e5708b3569c10b344246dea57b3426af45bdf3c7f6ed2830c9d13821a7def1b",
+        "requirement_refs": [
+          "REQ-LOGIN-1-1",
+          "REQ-LOGIN-1-2"
+        ],
+        "note": "Synthetic maintenance fixture: source clauses and independent outcomes explicitly enumerated by the test author. Not a real product review."
+      },
+      {
+        "origin_ref": "SEG-001-002",
+        "content_sha256": "5b91f969d4c762073144562b0752cfa35bac6651e5c8c66eedfe4b340d183ebb",
+        "requirement_refs": [
+          "REQ-LOGIN-2-1",
+          "REQ-LOGIN-2-2"
+        ],
+        "note": "Synthetic maintenance fixture: source clauses and independent outcomes explicitly enumerated by the test author. Not a real product review."
+      },
+      {
+        "origin_ref": "SEG-001-003",
+        "content_sha256": "af1c9a42f6b6b371001fa921e48f96d6a25f480f13799a34a6c839a1798206c8",
+        "requirement_refs": [
+          "REQ-LOGIN-3-1",
+          "REQ-LOGIN-3-2",
+          "REQ-LOGIN-3-3"
+        ],
+        "note": "Synthetic maintenance fixture: source clauses and independent outcomes explicitly enumerated by the test author. Not a real product review."
+      },
+      {
+        "origin_ref": "DEC-001",
+        "content_sha256": "1a795c824f6e2a8187e5a9ca250bcd44cc5e9640392575f3533631bd926afc05",
+        "requirement_refs": [
+          "REQ-LOGIN-DECISION"
+        ],
+        "note": "Synthetic maintenance fixture: source clauses and independent outcomes explicitly enumerated by the test author. Not a real product review."
+      }
+    ]
   },
   "requirement_confirmation": {
     "status": "confirmed",
     "confirmed_at": "2026-09-04T09:55:00+08:00",
-    "response_ref": "fixture:synthetic-user-confirmation",
-    "response_text": "Synthetic fixture user confirms the complete requirement summary.",
-    "snapshot_sha256": "f098988ba9120fa5da6c8d007cf5637a8da2512efdb79189a14e3a4cfd5a9da6"
+    "response_ref": "synthetic://confirm/1",
+    "response_text": "[SYNTHETIC] 确认上述有限的观测夹具范围。",
+    "snapshot_sha256": "9e7df09be23a43c95d09ea0d96dc43d32da95969c0c46e6fa8335c98e551bf0b",
+    "summary_event_ref": "EVT-SUMMARY-001",
+    "response_event_ref": "EVT-CONFIRM-001"
+  },
+  "requirement_items": [
+    {
+      "id": "REQ-LOGIN-1-1",
+      "origin_ref": "SEG-001-001",
+      "start": 0,
+      "end": 15,
+      "statement": "登录页结束加载并进入会员首页",
+      "disposition": "requirement",
+      "rule_refs": [
+        "RULE-LOGIN-001"
+      ]
+    },
+    {
+      "id": "REQ-LOGIN-1-2",
+      "origin_ref": "SEG-001-001",
+      "start": 15,
+      "end": 27,
+      "statement": "页面显示该账号的会员昵称",
+      "disposition": "requirement",
+      "rule_refs": [
+        "RULE-LOGIN-001"
+      ]
+    },
+    {
+      "id": "REQ-LOGIN-2-1",
+      "origin_ref": "SEG-001-002",
+      "start": 0,
+      "end": 20,
+      "statement": "第五次失败后显示账号已锁定 15 分钟",
+      "disposition": "requirement",
+      "rule_refs": [
+        "RULE-LOGIN-002"
+      ]
+    },
+    {
+      "id": "REQ-LOGIN-2-2",
+      "origin_ref": "SEG-001-002",
+      "start": 20,
+      "end": 32,
+      "statement": "继续提交不会进入会员首页",
+      "disposition": "requirement",
+      "rule_refs": [
+        "RULE-LOGIN-002"
+      ]
+    },
+    {
+      "id": "REQ-LOGIN-3-1",
+      "origin_ref": "SEG-001-003",
+      "start": 0,
+      "end": 12,
+      "statement": "密码输入框显示必填提示",
+      "disposition": "requirement",
+      "rule_refs": [
+        "RULE-LOGIN-003"
+      ]
+    },
+    {
+      "id": "REQ-LOGIN-3-2",
+      "origin_ref": "SEG-001-003",
+      "start": 12,
+      "end": 21,
+      "statement": "页面停留在登录页",
+      "disposition": "requirement",
+      "rule_refs": [
+        "RULE-LOGIN-003"
+      ]
+    },
+    {
+      "id": "REQ-LOGIN-3-3",
+      "origin_ref": "SEG-001-003",
+      "start": 21,
+      "end": 29,
+      "statement": "不会建立登录会话",
+      "disposition": "requirement",
+      "rule_refs": [
+        "RULE-LOGIN-003"
+      ]
+    },
+    {
+      "id": "REQ-LOGIN-DECISION",
+      "origin_ref": "DEC-001",
+      "start": 0,
+      "end": 19,
+      "statement": "连续输错 5 次后锁定账号 15 分钟",
+      "disposition": "requirement",
+      "rule_refs": [
+        "RULE-LOGIN-002"
+      ]
+    }
+  ],
+  "coverage_plan": {
+    "status": "frozen",
+    "frozen_at": "2026-09-04T09:55:00+08:00",
+    "sha256": "a2cf70449d0e23393b7ecded48cc8668ac521d79eab7e113d454541ed123af46"
+  },
+  "requirement_units": [
+    {
+      "id": "RU-001",
+      "title": "登录主流程与输入校验",
+      "source_refs": [
+        "SRC-001#正常登录流程",
+        "SRC-001#输入校验"
+      ],
+      "status": "confirmed",
+      "understanding": "有效会员可以登录；缺少必填凭据时页面阻止提交。",
+      "confirmed_facts": [
+        "有效账号登录后进入会员首页",
+        "密码为必填项"
+      ],
+      "depends_on": [],
+      "rule_refs": [
+        "RULE-LOGIN-001",
+        "RULE-LOGIN-003"
+      ]
+    },
+    {
+      "id": "RU-002",
+      "title": "连续登录失败保护",
+      "source_refs": [
+        "SRC-001#安全保护"
+      ],
+      "status": "confirmed",
+      "understanding": "连续失败达到阈值后临时锁定账号。",
+      "confirmed_facts": [
+        "连续五次失败后锁定十五分钟"
+      ],
+      "depends_on": [],
+      "rule_refs": [
+        "RULE-LOGIN-002"
+      ]
+    }
+  ],
+  "dialogue_events": [
+    {
+      "id": "EVT-QUESTION-001",
+      "kind": "question",
+      "text": "[SYNTHETIC] Q-RU002-01 连续失败如何处理？A. 不锁定 B. 五次失败锁定十五分钟。",
+      "question_ids": [
+        "Q-RU002-01"
+      ],
+      "message_ref": "synthetic://question/1"
+    },
+    {
+      "id": "EVT-ANSWER-001",
+      "kind": "answer",
+      "text": "[SYNTHETIC] B。此夹具只验证所列观测，其他完整登录场景不在夹具范围。",
+      "message_ref": "synthetic://answer/1",
+      "in_reply_to": "EVT-QUESTION-001"
+    },
+    {
+      "id": "EVT-SUMMARY-001",
+      "kind": "summary",
+      "text": "[SYNTHETIC] 仅验证有效登录的首页及昵称、第五次失败后的锁定提示和不进入首页、空密码的提示与不建立会话。此为维护夹具，并非完整登录需求。",
+      "message_ref": "synthetic://summary/1",
+      "snapshot_sha256": "9e7df09be23a43c95d09ea0d96dc43d32da95969c0c46e6fa8335c98e551bf0b"
+    },
+    {
+      "id": "EVT-CONFIRM-001",
+      "kind": "confirmation",
+      "text": "[SYNTHETIC] 确认上述有限的观测夹具范围。",
+      "message_ref": "synthetic://confirm/1",
+      "in_reply_to": "EVT-SUMMARY-001"
+    }
+  ],
+  "branch_reviews": [
+    {
+      "answer_event_ref": "EVT-ANSWER-001",
+      "unit_refs": [
+        "RU-002"
+      ],
+      "note": "Synthetic scope limits this fixture to the specified lock observations; recovery, other boundaries and roles belong to separate methodology fixtures, not full product coverage."
+    }
+  ],
+  "requirement_review": {
+    "status": "ready",
+    "snapshot_sha256": "9e7df09be23a43c95d09ea0d96dc43d32da95969c0c46e6fa8335c98e551bf0b",
+    "checks": [
+      {
+        "kind": "business-coverage",
+        "unit_refs": [
+          "RU-001",
+          "RU-002"
+        ],
+        "note": "Synthetic fixture contains only selected visible login outcomes; it does not assert full authentication coverage."
+      },
+      {
+        "kind": "branch-expansion",
+        "unit_refs": [
+          "RU-001",
+          "RU-002"
+        ],
+        "note": "The simulated lock decision can introduce recovery/boundary questions; these are explicitly excluded from this isolated observation fixture."
+      },
+      {
+        "kind": "decision-provenance",
+        "unit_refs": [
+          "RU-001",
+          "RU-002"
+        ],
+        "note": "Three original synthetic source slices and the simulated answer support the selected observations; no real confirmation is claimed."
+      }
+    ]
   }
 }

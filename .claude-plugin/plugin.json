@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "wewo-qa-skills",
   "displayName": "Wewo QA Skills",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Wewo 测试：先交互澄清并确认需求，生成 XMind 与冒烟/回归/全量三份 Excel，再结合项目源码编写并执行自动化测试",
   "author": {
     "name": "Wewo",

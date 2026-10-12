@@ -16,6 +16,9 @@ if not getattr(sys, "frozen", False):
 import prepare_execution_profile
 import case_workbook
 import design_context
+import requirement_coverage
+import requirement_readiness
+import design_review
 import extract_source
 import judge_execution_results
 import native_execution
@@ -31,6 +34,9 @@ COMMANDS = {
     "extract-source": extract_source.main,
     "validate-design-context": design_context.main,
     "requirement-digest": design_context.digest_main,
+    "validate-requirement-readiness": requirement_readiness.main,
+    "design-review-digest": design_review.main,
+    "freeze-coverage-plan": requirement_coverage.main,
     "validate-test-points": design_validation.points_main,
     "render-test-points-xmind": render_test_points_xmind.main,
     "validate-test-manifest": design_validation.manifest_main,

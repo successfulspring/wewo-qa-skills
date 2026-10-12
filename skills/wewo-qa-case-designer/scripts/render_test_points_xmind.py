@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from artifact_tools import validate_test_points_file, write_bytes_atomic
+from artifact_language import ArtifactText, DEFAULT_LANGUAGE, output_language
 
 
 CONTENT_NS = "urn:xmind:xmap:xmlns:content:2.0"
@@ -40,58 +41,61 @@ def _timestamp_ms(value: str) -> str:
     return str(int(_generated_datetime(value).timestamp() * 1000))
 
 
-def _topic_title(node: dict[str, Any]) -> str:
+def _topic_title(node: dict[str, Any], language=DEFAULT_LANGUAGE) -> str:
     if node["id"] == "TP-ROOT":
         return node["title"]
-    return f"{node['id']}｜{node['title']}"
+    separator = "｜" if language == DEFAULT_LANGUAGE else " | "
+    return node["id"] + separator + node["title"]
 
 
-def _topic_note(node: dict[str, Any]) -> str:
-    lines = [
-        f"编号：{node['id']}",
-        f"类型：{node['kind']}",
-        f"状态：{node['status']}",
-    ]
-    if node["requirement_unit_refs"]:
-        lines.append(f"需求片段：{', '.join(node['requirement_unit_refs'])}")
-    if node["trace_refs"]:
-        lines.append(f"追溯：{', '.join(node['trace_refs'])}")
+def _topic_note(node: dict[str, Any], language=DEFAULT_LANGUAGE) -> str:
+    tr = ArtifactText(language)
+    separator = "：" if language == DEFAULT_LANGUAGE else ": "
+    def field(label, value):
+        return tr(label) + separator + value
+    lines = [field("编号", node["id"]), field("类型", node["kind"]), field("状态", node["status"])]
+    for key, label in (("requirement_unit_refs", "需求片段"), ("trace_refs", "追溯")):
+        if node[key]:
+            lines.append(field(label, ", ".join(node[key])))
     if "automation_candidate" in node:
-        lines.append(f"自动化候选：{'是' if node['automation_candidate'] else '否'}")
+        lines.append(field("自动化候选", tr("是" if node["automation_candidate"] else "否")))
     if node.get("rationale"):
-        lines.append(f"依据：{node['rationale']}")
+        lines.append(field("依据", node["rationale"]))
     if node.get("notes"):
         lines.append(node["notes"])
-    if node.get("rule_refs"):
-        lines.append("业务规则：" + ", ".join(node["rule_refs"]))
-    if node.get("coverage_item_refs"):
-        lines.append("设计覆盖项：" + ", ".join(node["coverage_item_refs"]))
+    for key, label in (("rule_refs", "业务规则"), ("coverage_item_refs", "设计覆盖项")):
+        if node.get(key):
+            lines.append(field(label, ", ".join(node[key])))
+    if node.get("outcome_ref"):
+        lines.append(field("独立检查结果", node["outcome_ref"]))
     if node.get("verification"):
-        check = node["verification"]
-        lines.extend(["条件：" + check["condition"], "动作：" + check["action"], "预期：" + check["expected"]])
+        lines.extend(field(label, node["verification"][key])
+            for key, label in (("condition", "条件"), ("action", "动作"), ("expected", "预期")))
     return "\n".join(lines)
 
 
-def _zen_topic(node: dict[str, Any]) -> dict[str, Any]:
+def _zen_topic(node: dict[str, Any], language=DEFAULT_LANGUAGE) -> dict[str, Any]:
     topic: dict[str, Any] = {
         "id": _stable_xmind_id(node["id"]),
         "class": "topic",
-        "title": _topic_title(node),
-        "notes": {"plain": {"content": _topic_note(node)}},
+        "title": _topic_title(node, language),
+        "notes": {"plain": {"content": _topic_note(node, language)}},
         "labels": [node["kind"], node["status"]],
     }
     if node["children"]:
-        topic["children"] = {"attached": [_zen_topic(child) for child in node["children"]]}
+        topic["children"] = {"attached": [_zen_topic(child, language) for child in node["children"]]}
     return topic
 
 
 def _render_zen(test_points: dict[str, Any]) -> dict[str, bytes]:
+    language = output_language(test_points)
+    tr = ArtifactText(language)
     project = test_points["project"]
     sheet = {
         "id": _stable_xmind_id(f"sheet:{project['artifact_id']}"),
         "class": "sheet",
-        "title": f"{project['requirement']} 测试点",
-        "rootTopic": _zen_topic(test_points["tree"]),
+        "title": project["requirement"] + " " + tr("测试点"),
+        "rootTopic": _zen_topic(test_points["tree"], language),
     }
     content = json.dumps([sheet], ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     metadata = json.dumps(
@@ -111,16 +115,16 @@ def _ctag(name: str) -> str:
     return f"{{{CONTENT_NS}}}{name}"
 
 
-def _legacy_topic(parent: ET.Element, node: dict[str, Any], timestamp: str) -> None:
+def _legacy_topic(parent: ET.Element, node: dict[str, Any], timestamp: str, language=DEFAULT_LANGUAGE) -> None:
     topic = ET.SubElement(parent, _ctag("topic"))
     topic.set("id", _stable_xmind_id(node["id"]))
     topic.set("timestamp", timestamp)
     if node["id"] == "TP-ROOT":
         topic.set("structure-class", "org.xmind.ui.logic.right")
-    ET.SubElement(topic, _ctag("title")).text = _topic_title(node)
+    ET.SubElement(topic, _ctag("title")).text = _topic_title(node, language)
 
     notes = ET.SubElement(topic, _ctag("notes"))
-    ET.SubElement(notes, _ctag("plain")).text = _topic_note(node)
+    ET.SubElement(notes, _ctag("plain")).text = _topic_note(node, language)
     labels = ET.SubElement(topic, _ctag("labels"))
     for value in (node["kind"], node["status"]):
         ET.SubElement(labels, _ctag("label")).text = value
@@ -130,10 +134,12 @@ def _legacy_topic(parent: ET.Element, node: dict[str, Any], timestamp: str) -> N
         attached = ET.SubElement(children, _ctag("topics"))
         attached.set("type", "attached")
         for child in node["children"]:
-            _legacy_topic(attached, child, timestamp)
+            _legacy_topic(attached, child, timestamp, language)
 
 
 def _render_legacy(test_points: dict[str, Any]) -> dict[str, bytes]:
+    language = output_language(test_points)
+    tr = ArtifactText(language)
     ET.register_namespace("", CONTENT_NS)
     ET.register_namespace("xlink", XLINK_NS)
     timestamp = _timestamp_ms(test_points["generated_at"])
@@ -144,8 +150,8 @@ def _render_legacy(test_points: dict[str, Any]) -> dict[str, bytes]:
         _ctag("sheet"),
         {"id": _stable_xmind_id(f"sheet:{project['artifact_id']}"), "timestamp": timestamp},
     )
-    _legacy_topic(sheet, test_points["tree"], timestamp)
-    ET.SubElement(sheet, _ctag("title")).text = f"{project['requirement']} 测试点"
+    _legacy_topic(sheet, test_points["tree"], timestamp, language)
+    ET.SubElement(sheet, _ctag("title")).text = project["requirement"] + " " + tr("测试点")
     content = ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
     generated = _generated_datetime(test_points["generated_at"])
@@ -182,10 +188,14 @@ def _render_legacy(test_points: dict[str, Any]) -> dict[str, bytes]:
 
 
 def render_xmind_bytes(test_points: dict[str, Any], output_format: str = "legacy", *, draft: bool = False) -> bytes:
+    language = output_language(test_points)
+    tr = ArtifactText(language)
     if draft:
         test_points = copy.deepcopy(test_points)
-        test_points["tree"]["title"] = "草案（待确认）｜" + test_points["tree"]["title"]
-        test_points["tree"]["notes"] = "Draft for review; not a confirmed case or execution baseline."
+        separator = "｜" if language == DEFAULT_LANGUAGE else " | "
+        test_points["tree"]["title"] = tr("草案（待确认）") + separator + test_points["tree"]["title"]
+        warning = tr("供评审的草案，尚未成为已确认的用例或执行基线。")
+        test_points["tree"]["notes"] = warning + ("\n" + test_points["tree"]["notes"] if test_points["tree"].get("notes") else "")
     files = _render_legacy(test_points) if output_format == "legacy" else _render_zen(test_points)
     generated = _generated_datetime(test_points["generated_at"])
     zip_time = (max(generated.year, 1980), generated.month, generated.day, generated.hour, generated.minute, generated.second)

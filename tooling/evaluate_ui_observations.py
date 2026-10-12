@@ -14,7 +14,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "tooling/runtime"), str(ROOT / "skills/wewo-qa-case-designer/scripts"), str(ROOT / "skills/wewo-qa-case-executor/scripts"), str(ROOT / "tests")]
-from artifact_factory import artifact_set, write_json
+from artifact_factory import artifact_set, write_json, seal_synthetic_context, seal_synthetic_points, seal_synthetic_cases
 from artifact_tools import load_json, sha256_file, validate_manifest_file
 from case_workbook import render_case_workbooks
 from design_context import requirement_digest
@@ -45,7 +45,15 @@ def main():
     points["sources"] = manifest["sources"] = [source]
     context["sources"] = [{**source, "scope":"included", "inventory_status":"complete", "method":"Explicit synthetic four-obligation benchmark"}]
     for item in [context,points,manifest]: item["decisions"] = []
-    context["segments"] = [{"id":"SEG-001-001", "source_id":"SRC-001", "anchor":"benchmark", "kind":"text", "content":"On creation for a Ready order, become InTransit; incoming increases by the selected two parcels; origin reserved quantity and parcel order binding remain unchanged. This benchmark only covers these four observable obligations.", "read_status":"read", "disposition":"requirement"}]
+    clauses = ["On creation for a Ready order, become InTransit;", " incoming increases by the selected two parcels;", " origin reserved quantity remains unchanged;", " parcel order binding remains unchanged."]
+    scope_note = " This benchmark only covers these four observable obligations."
+    context["segments"] = [{"id":"SEG-001-001", "source_id":"SRC-001", "anchor":"benchmark", "kind":"text", "content":"".join(clauses) + scope_note, "read_status":"read", "disposition":"requirement"}]
+    context["requirement_items"] = []
+    offset = 0
+    for index, clause in enumerate(clauses, 1):
+        context["requirement_items"].append({"id":f"REQ-UI-{index}","origin_ref":"SEG-001-001","start":offset,"end":offset+len(clause),"statement":clause.strip(),"disposition":"requirement","rule_refs":[f"RULE-UI-{index}"]})
+        offset += len(clause)
+    context["requirement_items"].append({"id":"REQ-UI-SCOPE","origin_ref":"SEG-001-001","start":offset,"end":offset+len(scope_note),"statement":scope_note.strip(),"disposition":"context","rule_refs":[],"reason":"Explicit scope of this synthetic observation benchmark."})
     points["requirement_units"] = [{"id":"RU-001", "title":"Four benchmark observations", "source_refs":["SRC-001#benchmark"], "status":"confirmed", "understanding":context["segments"][0]["content"], "confirmed_facts":[context["segments"][0]["content"]]}]
     obligations = [("state","状态成为 InTransit",{"kind":"equals","expected_value":"InTransit"}), ("incoming","目的在途数量增加 2",{"kind":"number-delta","expected_value":2}), ("reserved","来源保留数量不变",{"kind":"unchanged"}), ("binding","包裹订单绑定不变",{"kind":"unchanged"})]
     template_rule = copy.deepcopy(context["rules"][0])
@@ -54,13 +62,13 @@ def main():
     for index, (field,title,check) in enumerate(obligations,1):
         rid,pid,cid,aid = f"RULE-UI-{index}",f"TP-UI-{index}",f"COV-UI-{index}",f"AS-UI-{index}"
         rule = copy.deepcopy(template_rule)
-        rule.update(id=rid,title=title,kind="other",object_refs=[],segment_refs=["SEG-001-001"],decision_refs=[],condition="Ready order; select two parcels",action="Create transfer through UI",expected=title)
+        rule.update(id=rid,title=title,kind="other",object_refs=[],segment_refs=["SEG-001-001"],decision_refs=[],requirement_refs=[f"REQ-UI-{index}"],factors=[],condition="Ready order; select two parcels",action="Create transfer through UI",expected=title)
         for dimension in rule["coverage"]:
-            dimension.update(applicability="required" if dimension["dimension"] == "positive" else "not-applicable",test_point_refs=[pid] if dimension["dimension"] == "positive" else [],reason="This narrowly scoped observation benchmark does not claim overall feature coverage.")
-        rule["design_models"] = [{"id":f"DM-UI-{index}","method":"scenario","rationale":"One fixed operation checks this independently observable outcome; full feature design is outside this benchmark.","items":[{"id":cid,"dimensions":["positive"],"condition":rule["condition"],"action":rule["action"],"expected":title,"setup":"Restore synthetic order via the fixture reset button.","disposition":"required","test_point_refs":[pid]}]}]
+            dimension.update(applicability="required" if dimension["dimension"] == "positive" else "not-applicable",test_point_refs=[pid] if dimension["dimension"] == "positive" else [],basis_refs=rule["requirement_refs"][:],reason="This narrowly scoped observation benchmark does not claim overall feature coverage.")
+        rule["design_models"] = [{"id":f"DM-UI-{index}","method":"scenario","rationale":"One fixed operation checks this independently observable outcome; full feature design is outside this benchmark.","items":[{"id":cid,"dimensions":["positive"],"condition":rule["condition"],"action":rule["action"],"expected":title,"setup":"Restore synthetic order via the fixture reset button.","disposition":"required","test_point_refs":[pid],"requirement_refs":rule["requirement_refs"][:],"factor_values":{},"outcomes":[{"id":f"OUT-UI-{index}","subject":"Synthetic order","observable":field,"expected":title}]}]}]
         context["rules"].append(rule)
         leaf = copy.deepcopy(template_leaf)
-        leaf.update(id=pid,title=title,kind="oracle",trace_refs=["SRC-001#benchmark"],rule_refs=[rid],coverage_item_refs=[cid],verification={k:rule[k] for k in ["condition","action","expected"]})
+        leaf.update(id=pid,title=title,kind="oracle",trace_refs=["SRC-001#benchmark"],rule_refs=[rid],coverage_item_refs=[cid],outcome_ref=f"OUT-UI-{index}",verification={k:rule[k] for k in ["condition","action","expected"]})
         leaves.append(leaf)
         assertions.append({"id":aid,"description":title,"observation":"Synthetic order " + field + " field","expected":title,"target_ids":[target],"test_point_refs":[pid],"required_evidence":["tool-output"],"check":{**check,"timing":"After create-transfer changes order state to InTransit"}})
     points["tree"].update(title=project["name"],children=leaves)
@@ -75,10 +83,22 @@ def main():
         "response_text": "Synthetic benchmark fixture only; not a real tester approval.",
         "snapshot_sha256": requirement_digest(context),
     }
+    context["requirement_units"] = [{**u, "depends_on": [], "rule_refs": [r["id"] for r in context["rules"]]} for u in points["requirement_units"]]
+    context["dialogue_events"] = [
+        {"id":"EVT-SUMMARY-001", "kind":"summary", "text":"[SYNTHETIC] " + context["segments"][0]["content"], "message_ref":"synthetic://benchmark/summary", "snapshot_sha256":"0"*64},
+        {"id":"EVT-CONFIRM-001", "kind":"confirmation", "text":context["requirement_confirmation"]["response_text"], "message_ref":context["requirement_confirmation"]["response_ref"], "in_reply_to":"EVT-SUMMARY-001"},
+    ]
+    context["branch_reviews"] = []
+    context["requirement_confirmation"].update(summary_event_ref="EVT-SUMMARY-001", response_event_ref="EVT-CONFIRM-001")
+    for check in context["requirement_review"]["checks"]:
+        check.update(unit_refs=["RU-001"], note="Synthetic four-observation benchmark only: state, incoming quantity, reserved quantity and parcel binding. No full feature coverage claimed.")
+    seal_synthetic_context(context)
     write_json(output / "design-context.json", context)
     points["design_context_baseline"]["sha256"] = sha256_file(output / "design-context.json")
+    seal_synthetic_points(points)
     write_json(output / "test-points.json", points)
     manifest["test_points_baseline"]["sha256"] = sha256_file(output / "test-points.json")
+    seal_synthetic_cases(manifest)
     write_json(path, manifest)
     validate_manifest_file(path)
     render_case_workbooks(path)

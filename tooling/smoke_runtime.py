@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import copy
 import subprocess
 import sys
 import tempfile
@@ -11,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "tooling/runtime"), str(ROOT / "skills/wewo-qa-case-designer/scripts"), str(ROOT / "skills/wewo-qa-case-executor/scripts"), str(ROOT / "tests")]
-from artifact_factory import execution_set, write_json, mutate_observation
+from artifact_factory import artifact_set, execution_set, write_json, mutate_observation, seal_synthetic_points, seal_synthetic_readiness
 from artifact_tools import sha256_file
 from openpyxl import load_workbook
 from runtime_version import VERSION
@@ -32,8 +33,85 @@ def main():
     with tempfile.TemporaryDirectory(prefix="wewo-qa-smoke-") as folder:
         directory = Path(folder)
         manifest, path, profile, profile_path, results, results_path = execution_set(directory)
+        # Exercise the native plan command with a genuine pre-leaf synthetic plan.
+        original_context = json.loads((directory / "design-context.json").read_text(encoding="utf-8"))
+        planned = copy.deepcopy(original_context)
+        planned.update(coverage_plan={"status":"draft"}, review={"status":"draft"})
+        for rule in planned["rules"]:
+            for dimension in rule["coverage"]:
+                dimension["test_point_refs"] = []
+            for model in rule["design_models"]:
+                for item in model["items"]:
+                    item["test_point_refs"] = []
+        planned_path = directory / "planned-context.json"
+        write_json(planned_path, planned)
+        run("validate-requirement-readiness", planned_path)
+        run("validate-requirement-readiness", planned_path, "--confirmed")
+        # Same decision, a new question occurrence and a free-form reply. Old
+        # answers must not close a follow-up, even with refreshed fixture hashes.
+        dialogue = copy.deepcopy(planned)
+        dialogue["dialogue_events"] = dialogue["dialogue_events"][:2]
+        dialogue["requirement_confirmation"] = {"status":"draft"}
+        dialogue["dialogue_events"][0]["question_ids"] = ["Q1.1"]
+        dialogue["dialogue_events"][0]["text"] = "[SYNTHETIC] Q1.1 What are the failure threshold and lock duration?"
+        dialogue["decisions"][0]["question_id"] = "Q1.1"
+        dialogue["dialogue_events"].append({"id":"EVT-QUESTION-002", "kind":"question", "message_ref":"synthetic://q2",
+            "text":"[SYNTHETIC] Q1.1 Please restate that rule without choosing an option.", "question_ids":["Q1.1"],
+            "revisits":{"Q1.1":"EVT-QUESTION-001"}})
+        dialogue_path = directory / "followup-context.json"
+        seal_synthetic_readiness(dialogue)
+        write_json(dialogue_path, dialogue)
+        run("validate-requirement-readiness", dialogue_path, fail=True)
+        dialogue["dialogue_events"].append({"id":"EVT-ANSWER-002", "kind":"answer", "message_ref":"synthetic://a2",
+            "text":"[SYNTHETIC] Five failures lock the account for fifteen minutes.", "question_ids":["Q1.1"], "in_reply_to":"EVT-QUESTION-002"})
+        dialogue["branch_reviews"].append({"answer_event_ref":"EVT-ANSWER-002", "unit_refs":["RU-002"],
+            "note":"Synthetic restatement preserves the same threshold and duration; no new branch."})
+        old = dialogue["decisions"][0]
+        replacement = {**old, "id":"DEC-002", "response_event_ref":"EVT-ANSWER-002"}
+        replacement.pop("selected_options", None)
+        old.update(status="superseded", superseded_by="DEC-002")
+        dialogue["decisions"].append(replacement)
+        for rule in dialogue["rules"]:
+            rule["decision_refs"] = ["DEC-002" if ref == "DEC-001" else ref for ref in rule["decision_refs"]]
+        for item in dialogue["requirement_items"]:
+            if item["origin_ref"] == "DEC-001":
+                item["origin_ref"] = "DEC-002"
+        seal_synthetic_readiness(dialogue)
+        write_json(dialogue_path, dialogue)
+        run("validate-requirement-readiness", dialogue_path)
+        run("validate-requirement-readiness", dialogue_path, "--confirmed", fail=True)
+        # The extracted runtime must contain the language catalog and retain
+        # typed Chinese literals while generating and importing English views.
+        english_dir = directory / "english"
+        _, _, english_manifest, english_path = artifact_set(english_dir, language="en")
+        run("validate-test-points", english_dir / "test-points.json")
+        run("render-test-points-xmind", english_dir / "test-points.json")
+        run("render-test-points-xmind", english_dir / "test-points.json", "--format", "zen", "--output", english_dir / "points-zen.xmind")
+        run("render-case-workbook", english_path)
+        run("validate-case-workbook", english_path)
+        run("import-case-workbook", english_path)
+        imported = json.loads((english_dir / "test-manifest.pending.json").read_text(encoding="utf-8"))
+        if imported != english_manifest:
+            raise RuntimeError("English workbook roundtrip changed business data")
+        english_book = load_workbook(english_dir / "test-cases.full.xlsx")
+        try:
+            if english_book["Test Cases"]["A1"].value != "Case ID":
+                raise RuntimeError("English case workbook labels were not rendered")
+        finally:
+            english_book.close()
+        run("freeze-coverage-plan", planned_path)
+        frozen = json.loads(planned_path.read_text(encoding="utf-8"))
+        if frozen["coverage_plan"]["status"] != "frozen" or frozen["requirement_confirmation"] != planned["requirement_confirmation"] or frozen["review"]["status"] != "draft":
+            raise RuntimeError("coverage freezing must preserve human confirmation and leave semantic review pending")
+        run("freeze-coverage-plan", directory / "design-context.json", fail=True)
+        broken = copy.deepcopy(original_context)
+        broken["rules"][0]["design_models"][0]["items"][0]["outcomes"].pop()
+        write_json(directory / "changed-plan.json", broken)
+        run("validate-design-context", directory / "changed-plan.json", fail=True)
         run("validate-design-context", directory / "design-context.json")
         run("validate-test-points", directory / "test-points.json")
+        run("design-review-digest", directory / "test-points.json")
+        run("design-review-digest", path)
         run("render-test-points-xmind", directory / "test-points.json")
         run("render-test-points-xmind", directory / "test-points.json", "--format", "zen", "--output", directory / "points-zen.xmind")
         run("validate-test-manifest", path)
@@ -111,15 +189,23 @@ def main():
         context_path, points_path = directory / "design-context.json", directory / "test-points.json"
         context = json.loads(context_path.read_text(encoding="utf-8"))
         context["review"] = {"status": "draft"}
-        context["open_questions"] = [{"id": "Q-001", "description": "Synthetic unanswered scope", "material": True}]
         write_json(context_path, context)
         points = json.loads(points_path.read_text(encoding="utf-8"))
         points["design_context_baseline"]["sha256"] = sha256_file(context_path)
+        seal_synthetic_points(points)
         write_json(points_path, points)
         run("validate-test-points", points_path, "--draft")
         run("render-test-points-xmind", points_path, "--draft")
         run("render-test-points-xmind", points_path, fail=True)
-    print("OK: bundled extraction, XMind, Excel roundtrip, profile, assertion rejection and failure report smoke")
+        # A review draft must not bypass unfinished requirement discovery.
+        context["open_questions"] = [{"id":"Q-001", "unit_id":"RU-001", "impact":"Changes scope", "description":"Synthetic unanswered scope", "material":True}]
+        write_json(context_path, context)
+        points["design_context_baseline"]["sha256"] = sha256_file(context_path)
+        seal_synthetic_points(points)
+        write_json(points_path, points)
+        run("validate-requirement-readiness", context_path, fail=True)
+        run("render-test-points-xmind", points_path, "--draft", fail=True)
+    print("OK: bundled coverage-plan freezing/change rejection, extraction, XMind, Excel roundtrip, profile, assertion rejection and failure report smoke")
     return 0
 
 

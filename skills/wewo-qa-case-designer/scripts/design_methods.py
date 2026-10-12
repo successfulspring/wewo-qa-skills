@@ -25,7 +25,7 @@ def review_errors(review, *, final):
     return errors
 
 
-def derivation_errors(context, *, final):
+def derivation_errors(context, *, final, require_points=True):
     errors, ids = [], set()
     objects = {o["id"]: o for o in context["objects"]}
     for rule in context["rules"]:
@@ -48,7 +48,7 @@ def derivation_errors(context, *, final):
                         errors.append(tag + ": excluded item needs reason and no points")
                 else:
                     covered.update(item["dimensions"])
-                    if final and not item["test_point_refs"]:
+                    if final and require_points and not item["test_point_refs"]:
                         errors.append(tag + ": required derivation has no leaf test point")
             kind = model["method"]
             try:
@@ -121,12 +121,23 @@ def derivation_links(context, leaves, *, final):
     errors, pairs = [], set()
     items = {i["id"]: (r, m, i) for r in context["rules"] for m in r["design_models"] for i in m["items"]}
     for cid, (rule, model, item) in items.items():
+        outcomes = {o["id"]: o for o in item["outcomes"]}
+        linked_outcomes = []
         dimension_points = {p for d in rule["coverage"] if d["dimension"] in item["dimensions"] for p in d["test_point_refs"]}
         for pid in item["test_point_refs"]:
             leaf = leaves.get(pid)
             if not leaf or cid not in leaf.get("coverage_item_refs", []) or rule["id"] not in leaf["rule_refs"] or pid not in dimension_points:
                 errors.append(cid + ": leaf linkage disagrees with rule, dimension, or coverage item: " + pid)
+            if leaf:
+                oid = leaf.get("outcome_ref")
+                linked_outcomes.append(oid)
+                if oid not in outcomes:
+                    errors.append(pid + ": leaf must identify one planned independent outcome")
+                elif leaf["verification"] != {"condition": item["condition"], "action": item["action"], "expected": outcomes[oid]["expected"]}:
+                    errors.append(pid + ": leaf verification differs from its frozen condition, trigger or outcome")
             pairs.add((cid, pid))
+        if final and (set(linked_outcomes) != set(outcomes) or len(linked_outcomes) != len(outcomes)):
+            errors.append(cid + ": split each independent outcome into its own leaf; planned outcomes are missing or combined")
     for rule in context["rules"]:
         for dimension in rule["coverage"]:
             derived = {p for model in rule["design_models"] for item in model["items"] if dimension["dimension"] in item["dimensions"] for p in item["test_point_refs"]}
@@ -137,11 +148,16 @@ def derivation_links(context, leaves, *, final):
         if final and not refs:
             errors.append(pid + ": leaf requires a concrete coverage item")
         linked_models = []
+        assignments = []
         for cid in refs:
             if cid not in items or (cid, pid) not in pairs:
                 errors.append(pid + ": unknown or unlinked coverage item " + cid)
             else:
                 linked_models.append(items[cid][1]["id"])
+                item = items[cid][2]
+                assignments.append((item["condition"], item["action"], item["factor_values"]))
         if len(linked_models) != len(set(linked_models)):
             errors.append(pid + ": split mutually exclusive representatives from the same model into separate leaves")
+        if assignments and any(a != assignments[0] for a in assignments[1:]):
+            errors.append(pid + ": different conditions, triggers or factor values require separate leaves")
     return errors

@@ -1,6 +1,6 @@
 interface:
   display_name: "Wewo QA Case Designer"
-  short_description: "先澄清并确认需求，再生成XMind与冒烟、回归、全量三份Excel"
+  short_description: "Clarify requirements and design XMind points and Excel cases"
   default_prompt: "Use $wewo-qa-case-designer to co-read and clarify these requirements, obtain explicit final requirement confirmation, then confirm atomic XMind points and deliver three reviewed Excel suite files."
 
 policy:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import hashlib
 from pathlib import Path
 
 from artifact_tools import load_json, sha256_file
@@ -19,14 +20,67 @@ def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def artifact_set(directory: Path):
+def seal_synthetic_context(context):
+    """Test-fixture metadata only; never use to manufacture real review/approval."""
+    from design_context import requirement_digest
+    from requirement_coverage import plan_digest, source_texts
+    seal_synthetic_readiness(context)
+    context["requirement_confirmation"]["snapshot_sha256"] = requirement_digest(context)
+    context["coverage_plan"] = {"status": "frozen", "frozen_at": "2026-09-04T09:55:00+08:00", "sha256": plan_digest(context)}
+    context["review"].update(plan_sha256=plan_digest(context), source_checks=[{
+        "origin_ref": origin, "content_sha256": hashlib.sha256(text.encode()).hexdigest(),
+        "requirement_refs": [i["id"] for i in context["requirement_items"] if i["origin_ref"] == origin],
+        "note": "Synthetic maintenance fixture: source clauses and independent outcomes explicitly enumerated by the test author. Not a real product review.",
+    } for origin, text in source_texts(context).items()])
+
+
+def seal_synthetic_readiness(context):
+    """Refresh hashes on explicitly simulated exchanges, not real approvals."""
+    from design_context import requirement_digest
+    snapshot = requirement_digest(context)
+    context["requirement_review"]["snapshot_sha256"] = snapshot
+    context["requirement_confirmation"]["snapshot_sha256"] = snapshot
+    summary_id = context["requirement_confirmation"].get("summary_event_ref")
+    for event in context["dialogue_events"]:
+        if event["id"] == summary_id:
+            event["snapshot_sha256"] = snapshot
+
+
+def seal_synthetic_points(points):
+    from artifact_tools import walk_test_points
+    from design_review import point_review_digest
+    points["design_review"] = {
+        "snapshot_sha256": point_review_digest(points),
+        "checked_leaf_refs": [n["id"] for n in walk_test_points(points["tree"]) if not n["children"]],
+        "atomicity_note": "Synthetic fixture: separate home visibility, nickname, rejection and retained-state observations; not a real product review.",
+        "visible_path_note": "Synthetic fixture: visible paths identify selected login conditions and independent results; no claim of complete login coverage.",
+    }
+
+
+def seal_synthetic_cases(manifest):
+    from design_review import case_review_digest
+    manifest["review"]["case_checks"] = [{
+        "case_id": c["id"], "snapshot_sha256": case_review_digest(manifest, c),
+        "walkthrough": "Synthetic fixture author checks the declared preparation and steps for " + c["id"] + "; no product execution or user approval.",
+        "oracle_basis": "Synthetic benchmark observations: " + ", ".join(c["test_point_refs"]),
+        "suite_reason": "Synthetic suite intersection for validator tests; not a real risk assessment: " + ", ".join(c["suite_membership"]),
+    } for c in manifest["cases"]]
+
+
+def artifact_set(directory: Path, *, language=None):
     context = load_json(FIXTURES / "design-context.json")
     points = load_json(FIXTURES / "test-points.json")
     manifest = load_json(FIXTURES / "valid-test-manifest.json")
+    if language is not None:
+        for artifact in (context, points, manifest):
+            artifact["project"]["output_language"] = language
+        seal_synthetic_context(context)
     write_json(directory / "design-context.json", context)
     points["design_context_baseline"]["sha256"] = sha256_file(directory / "design-context.json")
+    seal_synthetic_points(points)
     write_json(directory / "test-points.json", points)
     manifest["test_points_baseline"]["sha256"] = sha256_file(directory / "test-points.json")
+    seal_synthetic_cases(manifest)
     path = directory / "test-manifest.json"
     write_json(path, manifest)
     for suite in SUITES:

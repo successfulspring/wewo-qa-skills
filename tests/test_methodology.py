@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "tooling/runtime"), str(ROOT / "skills/wewo-qa-case-designer/scripts"), str(ROOT / "skills/wewo-qa-case-executor/scripts")]
 
 from openpyxl import load_workbook
-from artifact_factory import artifact_set, execution_set, mutate_observation, write_json
+from artifact_factory import artifact_set, execution_set, mutate_observation, write_json, seal_synthetic_context
 from artifact_tools import ValidationFailure, load_json, sha256_file, validate_results_data, validate_test_points_data
 from case_workbook import read_case_workbook, comparison_cells, comparison_value
 from design_context import validate_design_context_data
@@ -31,8 +31,10 @@ def model_context(method, items, **fields):
     for index, details in enumerate(items):
         item = {"id":f"COV-SAMPLE-{index}", "dimensions":[dimension], "condition":"Confirmed concrete condition", "action":"Perform the stated event", "expected":"The source-defined visible outcome", "setup":"Select a record in the specified state", "disposition":"required", "test_point_refs":[f"TP-SAMPLE-{index}"]}
         item.update(details)
+        item.update(requirement_refs=rule["requirement_refs"][:], factor_values={}, outcomes=[] if item["disposition"] == "excluded" else [{"id":f"OUT-SAMPLE-{index}","subject":"Synthetic record","observable":"Source-defined observation","expected":item["expected"]}])
         concrete.append(item)
     rule["design_models"] = [{"id":"DM-SAMPLE", "method":method, "rationale":"Isolated synthetic rule used to test omission detection", "items":concrete, **fields}]
+    seal_synthetic_context(context)
     return context
 
 
@@ -78,8 +80,7 @@ class DerivationTests(unittest.TestCase):
         context = model_context("state-transition", [{"from":s,"event":e,"to":s} for s in ["draft","submitted"] for e in ["submit","delete"]], object_ref="OBJ-ORDER", states=["draft","submitted"], events=["submit","delete"])
         context["objects"] = [{"id":"OBJ-ORDER","title":"Order","description":"Synthetic order states","states":["draft","submitted"],"segment_refs":["SEG-001-001"]}]
         context["rules"][0].update(kind="transition",object_refs=["OBJ-ORDER"])
-        from design_context import requirement_digest
-        context["requirement_confirmation"]["snapshot_sha256"] = requirement_digest(context)
+        seal_synthetic_context(context)
         validate_design_context_data(context)
 
     def test_role_matrix_checks_denied_pairs(self):

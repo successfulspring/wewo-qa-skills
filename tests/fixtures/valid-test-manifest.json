@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.4",
+  "schema_version": "1.6",
   "generated_at": "2026-09-04T10:00:00+08:00",
   "project": {
     "name": "示例会员系统",
@@ -60,8 +60,10 @@
   ],
   "test_points_baseline": {
     "path": "test-points.json",
-    "sha256": "09c978610b8c3f6b8481efec5301daad8a926b76a46e9004cfea411a89aae404",
-    "confirmed_at": "2026-09-04T09:58:00+08:00"
+    "sha256": "02bc115d9fd51bf63e4324ac9147a784e801b794e40c8552041f060491a076fe",
+    "confirmed_at": "2026-09-04T09:58:00+08:00",
+    "response_ref": "synthetic://xmind/confirm",
+    "response_text": "[SYNTHETIC] Confirm the limited observation tree for maintenance testing."
   },
   "runtime_requirements": [
     {
@@ -133,7 +135,8 @@
         "SRC-001#正常登录流程"
       ],
       "test_point_refs": [
-        "TP-LOGIN-SUCCESS"
+        "TP-LOGIN-SUCCESS",
+        "TP-LOGIN-NICKNAME"
       ],
       "priority": "P0",
       "risk": "high",
@@ -207,8 +210,8 @@
       "assertions": [
         {
           "id": "AS-LOGIN-001",
-          "description": "有效账号完成登录",
-          "observation": "Tester-visible login/home interface",
+          "description": "Member home is visible",
+          "observation": "Member home",
           "expected": "Member home is visible",
           "target_ids": [
             "web-chrome",
@@ -228,7 +231,7 @@
         },
         {
           "id": "AS-LOGIN-NICKNAME",
-          "description": "Member nickname",
+          "description": "Nickname matches selected member",
           "observation": "Home header",
           "expected": "Nickname matches selected member",
           "target_ids": [
@@ -236,7 +239,7 @@
             "ios-app"
           ],
           "test_point_refs": [
-            "TP-LOGIN-SUCCESS"
+            "TP-LOGIN-NICKNAME"
           ],
           "required_evidence": [
             "screenshot"
@@ -256,7 +259,8 @@
         "DEC-001"
       ],
       "test_point_refs": [
-        "TP-LOGIN-LOCKOUT"
+        "TP-LOGIN-LOCKOUT",
+        "TP-LOGIN-LOCKED-RETRY"
       ],
       "priority": "P1",
       "risk": "high",
@@ -283,9 +287,16 @@
       "steps": [
         {
           "action": "连续五次输入错误密码并提交",
-          "expected": "第五次失败后显示账号已锁定 15 分钟，继续提交不会进入会员首页",
+          "expected": "第五次失败后显示账号已锁定 15 分钟",
           "assertion_refs": [
             "AS-LOGIN-002"
+          ]
+        },
+        {
+          "action": "继续提交登录",
+          "expected": "锁定期间继续提交后不会进入会员首页",
+          "assertion_refs": [
+            "AS-LOGIN-LOCKED-RETRY"
           ]
         }
       ],
@@ -326,9 +337,9 @@
       "assertions": [
         {
           "id": "AS-LOGIN-002",
-          "description": "账号连续失败五次后被临时锁定",
-          "observation": "Tester-visible login/home interface",
-          "expected": "第五次失败后显示账号已锁定 15 分钟，继续提交不会进入会员首页",
+          "description": "第五次失败后显示账号已锁定 15 分钟",
+          "observation": "Login lockout message",
+          "expected": "第五次失败后显示账号已锁定 15 分钟",
           "target_ids": [
             "web-chrome",
             "ios-app"
@@ -341,7 +352,28 @@
           ],
           "check": {
             "kind": "equals",
-            "expected_value": "第五次失败后显示账号已锁定 15 分钟，继续提交不会进入会员首页",
+            "expected_value": "第五次失败后显示账号已锁定 15 分钟",
+            "timing": "After the indicated step completes and the stated UI outcome is observable."
+          }
+        },
+        {
+          "id": "AS-LOGIN-LOCKED-RETRY",
+          "description": "锁定期间继续提交后不会进入会员首页",
+          "observation": "Login/home interface",
+          "expected": "锁定期间继续提交后不会进入会员首页",
+          "target_ids": [
+            "web-chrome",
+            "ios-app"
+          ],
+          "test_point_refs": [
+            "TP-LOGIN-LOCKED-RETRY"
+          ],
+          "required_evidence": [
+            "screenshot"
+          ],
+          "check": {
+            "kind": "equals",
+            "expected_value": "锁定期间继续提交后不会进入会员首页",
             "timing": "After the indicated step completes and the stated UI outcome is observable."
           }
         }
@@ -354,7 +386,9 @@
         "SRC-001#输入校验"
       ],
       "test_point_refs": [
-        "TP-LOGIN-PASSWORD-REQUIRED"
+        "TP-LOGIN-PASSWORD-REQUIRED",
+        "TP-LOGIN-STAY",
+        "TP-LOGIN-NOSESSION"
       ],
       "priority": "P2",
       "risk": "medium",
@@ -378,7 +412,9 @@
           "action": "输入会员账号、保持密码为空并尝试提交",
           "expected": "密码输入框显示必填提示，页面停留在登录页且不会建立登录会话",
           "assertion_refs": [
-            "AS-LOGIN-003"
+            "AS-LOGIN-003",
+            "AS-LOGIN-STAY",
+            "AS-LOGIN-NOSESSION"
           ]
         }
       ],
@@ -405,9 +441,9 @@
       "assertions": [
         {
           "id": "AS-LOGIN-003",
-          "description": "密码为空时阻止提交",
-          "observation": "Tester-visible login/home interface",
-          "expected": "密码输入框显示必填提示，页面停留在登录页且不会建立登录会话",
+          "description": "密码输入框显示必填提示",
+          "observation": "Login validation message",
+          "expected": "密码输入框显示必填提示",
           "target_ids": [
             "web-chrome"
           ],
@@ -419,7 +455,47 @@
           ],
           "check": {
             "kind": "equals",
-            "expected_value": "密码输入框显示必填提示，页面停留在登录页且不会建立登录会话",
+            "expected_value": "密码输入框显示必填提示",
+            "timing": "After the indicated step completes and the stated UI outcome is observable."
+          }
+        },
+        {
+          "id": "AS-LOGIN-STAY",
+          "description": "页面停留在登录页",
+          "observation": "Current screen",
+          "expected": "页面停留在登录页",
+          "target_ids": [
+            "web-chrome"
+          ],
+          "test_point_refs": [
+            "TP-LOGIN-STAY"
+          ],
+          "required_evidence": [
+            "accessibility-snapshot"
+          ],
+          "check": {
+            "kind": "equals",
+            "expected_value": "页面停留在登录页",
+            "timing": "After the indicated step completes and the stated UI outcome is observable."
+          }
+        },
+        {
+          "id": "AS-LOGIN-NOSESSION",
+          "description": "不会建立登录会话",
+          "observation": "Session status",
+          "expected": "不会建立登录会话",
+          "target_ids": [
+            "web-chrome"
+          ],
+          "test_point_refs": [
+            "TP-LOGIN-NOSESSION"
+          ],
+          "required_evidence": [
+            "accessibility-snapshot"
+          ],
+          "check": {
+            "kind": "equals",
+            "expected_value": "不会建立登录会话",
             "timing": "After the indicated step completes and the stated UI outcome is observable."
           }
         }
@@ -435,6 +511,29 @@
       "executability",
       "oracle-consistency"
     ],
-    "findings": []
+    "findings": [],
+    "case_checks": [
+      {
+        "case_id": "QA-LOGIN-001",
+        "snapshot_sha256": "396cfce75188448d12fdfe2ad732436932f0c9e5b4681080e1aa66bb9e7b55d7",
+        "walkthrough": "Synthetic fixture author checks the declared preparation and steps for QA-LOGIN-001; no product execution or user approval.",
+        "oracle_basis": "Synthetic benchmark observations: TP-LOGIN-SUCCESS, TP-LOGIN-NICKNAME",
+        "suite_reason": "Synthetic suite intersection for validator tests; not a real risk assessment: smoke, regression, full"
+      },
+      {
+        "case_id": "QA-LOGIN-002",
+        "snapshot_sha256": "63ec782832c9c0dea425a21426a2280c2213d3a4f46e4d24b24a3f3e64d53224",
+        "walkthrough": "Synthetic fixture author checks the declared preparation and steps for QA-LOGIN-002; no product execution or user approval.",
+        "oracle_basis": "Synthetic benchmark observations: TP-LOGIN-LOCKOUT, TP-LOGIN-LOCKED-RETRY",
+        "suite_reason": "Synthetic suite intersection for validator tests; not a real risk assessment: regression, full"
+      },
+      {
+        "case_id": "QA-LOGIN-003",
+        "snapshot_sha256": "d500ab85ba254ca65de85067c4007c7db551cd2239abd143950d7f308a7e9915",
+        "walkthrough": "Synthetic fixture author checks the declared preparation and steps for QA-LOGIN-003; no product execution or user approval.",
+        "oracle_basis": "Synthetic benchmark observations: TP-LOGIN-PASSWORD-REQUIRED, TP-LOGIN-STAY, TP-LOGIN-NOSESSION",
+        "suite_reason": "Synthetic suite intersection for validator tests; not a real risk assessment: full"
+      }
+    ]
   }
 }

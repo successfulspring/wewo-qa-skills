@@ -10,6 +10,14 @@ Then refine coherent units in dependency order: shared object/state/permission r
 
 Pure project context belongs in source segments/objects/relationships, with its reading disposition and note; it does not require a fabricated standalone test leaf. Requirement units describe testable behavior and may cite that context. A source section title alone is not a requirement unit with coverage obligations.
 
+## Extract clauses before designing coverage
+
+Keep `segments.content` as actual anchored text, or a faithful verified transcription of pictures/tables/flows. Preserve cell headings, conditions, notes and relations. Split large material into readable anchored segments; a compressed module overview cannot replace the source. Reading caches remain private.
+
+Account for all non-whitespace content in every read, included segment and every active decision's `resolution` using `requirement_items`. Each `REQ-*` has `origin_ref` (`SEG-*` or `DEC-*`), zero-based Unicode character offsets `start/end` (end exclusive), a precise `statement`, `disposition`, and `rule_refs`. Offsets refer to the stored source string, not bytes or a paraphrase. Spans cannot overlap; separating whitespace may remain outside them. Split semantically: distinct operations, type-dependent requirements, exceptions and independent results need their own entries. Several entries may support one rule for the same trigger.
+
+`requirement` entries have reciprocal links to included rules that also cite their origin. `context` and `excluded` entries have no rule links and a source/decision-grounded reason. `pending` records an ambiguity and needs a reason; resolve it through dialogue. Include exclusions in the final requirement summary. Do not classify inconvenient behavior as context or combine an entire paragraph into one item to conceal a clause. Span checks catch unaccounted recorded text; semantic rereading detects falsely broad items and missing source extraction.
+
 ## Design evidence before implementation
 
 Product source code is unavailable during case design. Do not request or inspect product code, repository internals, database schemas or implementation details to complete the business model. A test-artifact working folder is sufficient; a project repository and a running new feature are not required.
@@ -20,22 +28,30 @@ Define expected results from confirmed rules before execution. Use business-visi
 
 ## Contract
 
+- `project.output_language`: the current delivery language (`zh-CN` or `en`), selected by the [delivery language policy](artifact-contract.md#delivery-language) and shared by the context, point baseline and case manifest. Missing legacy values mean `zh-CN`.
 - `sources`: provenance and scope plus `inventory_status`, `method`, and `reason` for incomplete/excluded material.
 - `segments`: stable source anchors, actual content, reading status and disposition. Non-requirement dispositions need `review_note`.
-- `decisions`: the same full decisions used in `test-points.json`, including unit/question references. Do not shorten the decision ledger here.
+- `decisions`: complete dialogue-backed decision history, including superseded decisions; only current decisions project into `test-points.json`.
+- `requirement_units`, `dialogue_events`, `branch_reviews`, `requirement_review`: canonical discovery state and requirement-only gates in [requirement readiness](requirement-readiness.md).
+- `requirement_items`: clause-by-clause source/decision extraction and reciprocal rule links.
 - `objects`: `OBJ-*`, description, states and grounded segment references. Include explicit roles in applicable rule conditions.
 - `relationships`: `REL-*`, from/to objects, meaning and rule references. These describe actual business effects, not merely links between pages.
 - `flows`: `FLOW-*`, ordered rule references and a visible business outcome.
-- `rules`: `RULE-*`, condition, action, expected outcome, objects, source segment or decision references, confirmed/assumed/excluded status, optional state transition, coverage disposition and concrete `design_models` from [concrete derivations](test-design.md#concrete-derivation-records).
+- `rules`: `RULE-*`, condition, action, expected, objects, source segment/decision and `requirement_refs`, status, optional transition, `factors`, coverage dispositions and concrete `design_models` from [concrete derivations](test-design.md#concrete-derivation-records).
+- `coverage_plan`: draft/frozen, with tool-generated timestamp and digest of requirements, applicability, factors, scenarios and outcomes, excluding later leaf links.
 - `open_questions`: describe material unresolved facts. A final model cannot have an unresolved material question.
 - `review`: draft/confirmed, confirmation timestamp, performed checks, findings and resolutions for the completed model.
 
-Each rule has exactly six coverage entries: `positive`, `negative`, `boundary`, `state`, `role`, `cross-object`. `required` entries identify concrete leaf IDs; `not-applicable` entries explain why. Do not manufacture a boundary for a rule without a range, count, temporal limit or discrete partition. Do not apply an unrelated generic state template to a field.
+Each rule has exactly six coverage entries: `positive`, `negative`, `boundary`, `state`, `role`, `cross-object`. Assess applicability before deriving scenarios, with `basis_refs` to that rule's `REQ-*` and a reason specific to this dimension and rule. `pending` is allowed during discovery, with no leaves; it blocks freezing/finalization. `required` entries receive leaf IDs only after freezing. `not-applicable` needs factual absence, a confirmed restriction or accepted exclusion; lack of generated scenarios, code access or runtime setup is not evidence of inapplicability. Do not manufacture boundaries or unrelated generic state/role templates.
 
-A rule's coverage can refer to a leaf in another module or in an end-to-end branch. Grouping nodes do not count as coverage. State transitions must use known object states. Every relationship and flow must reference included, grounded rules. Every included requirement segment must have a rule; every included rule must have leaves.
+Each `FAC-*` records a meaningful condition `name`, coverage `dimension`, representative `values` and `basis_refs`. Inventory it from source clauses and decisions, independently of already written examples. Every value needs a derived row or a grounded excluded row. A confirmed exception to a default format or validation rule needs its own representative; an example exercising only the default rule cannot establish exception coverage. Unknown expectations require clarification.
+
+A rule's coverage can refer to a leaf in another module or an end-to-end branch. Grouping nodes do not count. State transitions use known object states. Relationships and flows reference grounded rules. Every included requirement clause has a rule; every included rule and planned independent outcome has leaf coverage.
 
 ## Review evidence
 
-The tester confirms the interpreted rules through the progressive dialogue and final tree review. The agent performs a final semantic audit before setting `review.status=confirmed`; retain the facts, accepted assumptions and decisions that support it. `validate-design-context --draft` supports incomplete work; final validation requires closed coverage and reading gaps.
+After final requirement confirmation, derive rows/outcomes with empty leaf links and run `freeze-coverage-plan`. It checks closed extraction, applicable derivations and factor representatives before storing the plan digest. Then attach leaves. Changing leaf links leaves the plan unchanged; changing factors, scenarios, applicability or outcomes invalidates it. For a revision, preserve evidence, clear the candidate's leaf links, reopen affected questions/confirmations, refreeze, regenerate and reconfirm the affected tree. Never stamp human approval or recalculate the plan hash by hand to bypass this order.
 
-The validator proves references and declared coverage are consistent. It cannot prove that a relationship was understood correctly, that a leaf is truly atomic, or that a source was fully interpreted. Verify those against the original and the company's examples before confirming.
+Before setting `review.status=confirmed`, reread sources and decisions first, without using generated cases as the inventory. Record `review.source_checks` for every included origin: `origin_ref`, SHA-256 of its UTF-8 content, all its `requirement_refs`, and a substantive `note` on clause completeness and relevant variants. Record omissions/over-merges and repairs in existing findings. Set `review.plan_sha256` to the audited plan digest. A stale/missing origin audit or plan review blocks finalization. `validate-design-context --draft` supports incomplete work; XMind review drafts already require a frozen plan.
+
+Validation checks recorded-text accounting, representatives, frozen obligations, separate outcome links and audit freshness. It cannot prove complete source transcription, semantic atomicity or actual review performance. Verify these against the original and applicable company examples before confirming. Examples establish presentation/granularity standards, not undocumented product rules.
