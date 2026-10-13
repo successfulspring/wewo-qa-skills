@@ -6,10 +6,65 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tooling"))
 from package_plugin import validate_archive
+import validate_package
+
+
+class MarketplaceDistributionTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        for relative in validate_package.MARKETPLACES:
+            destination = self.root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((ROOT / relative).read_bytes())
+        self.patch = patch.object(validate_package, "ROOT", self.root)
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+
+    def set_source(self, relative, source):
+        path = self.root / relative
+        value = json.loads(path.read_text(encoding="utf8"))
+        value["plugins"][0]["source"] = source
+        path.write_text(json.dumps(value), encoding="utf8")
+
+    def validate(self):
+        errors = []
+        validate_package.validate_marketplaces(errors)
+        return errors
+
+    def test_each_distribution_accepts_matching_marketplaces(self):
+        for url in validate_package.APPROVED_SOURCE_URLS:
+            with self.subTest(url=url):
+                for relative in validate_package.MARKETPLACES:
+                    self.set_source(relative, {"source": "url", "url": url, "ref": "main"})
+                self.assertEqual([], self.validate())
+
+    def test_mixed_distribution_sources_are_rejected(self):
+        for relative, url in zip(validate_package.MARKETPLACES,
+                (validate_package.GITHUB_SOURCE_URL, validate_package.GITLAB_SOURCE_URL)):
+            self.set_source(relative, {"source": "url", "url": url, "ref": "main"})
+        self.assertEqual(["Claude and Codex marketplaces must reference the same distribution repository"],
+                         self.validate())
+
+    def test_unapproved_or_malformed_sources_are_rejected(self):
+        relative = validate_package.MARKETPLACES[0]
+        for source in ("./", {"source": "github", "repo": "successfulspring/wewo-qa-skills"},
+                {"source": "url", "url": "https://example.com/wewo-qa-skills.git", "ref": "main"},
+                {"source": "url", "url": {}, "ref": "main"}):
+            with self.subTest(source=source):
+                self.set_source(relative, source)
+                self.assertTrue(self.validate())
+
+    def test_gitlab_source_still_requires_codex_main_ref(self):
+        for relative in validate_package.MARKETPLACES:
+            self.set_source(relative, {"source": "url", "url": validate_package.GITLAB_SOURCE_URL})
+        self.assertTrue(any("Codex source ref must be main" in error for error in self.validate()))
 
 
 class RuntimeArchiveTests(unittest.TestCase):

@@ -70,16 +70,30 @@ $wewo-qa-case-executor 用例目录为 qa-artifacts/<feature>，测试环境为 
 
 ## 安装与调用
 
-Codex：添加市场后，在桌面插件界面安装 `wewo-qa-skills`。
+提供两个发布源，按网络条件选择一个即可：
+
+| 发布源 | 仓库 |
+| --- | --- |
+| GitHub | [successfulspring/wewo-qa-skills](https://github.com/successfulspring/wewo-qa-skills) |
+| 公司 GitLab | [skills/wewo-qa-skills](http://192.168.1.205/skills/wewo-qa-skills) |
+
+两端共享同一套 Skill、版本和运行工具，各自的市场清单指向各自仓库。GitLab 发布版从内网获取插件；需要能访问公司网络，并具备该仓库的读取权限。市场名和插件名均为 `wewo-qa-skills`，选择一个来源安装。
+
+Codex：选择一条命令添加市场后，在桌面插件界面安装 `wewo-qa-skills`。
 
 ```text
 codex plugin marketplace add successfulspring/wewo-qa-skills
+# 或使用公司 GitLab
+codex plugin marketplace add http://192.168.1.205/skills/wewo-qa-skills.git
 ```
 
-Claude Code：
+Claude Code：同样选择一个市场来源，再安装插件。
 
 ```text
 claude plugin marketplace add successfulspring/wewo-qa-skills
+# 或使用公司 GitLab
+claude plugin marketplace add http://192.168.1.205/skills/wewo-qa-skills.git
+
 claude plugin install wewo-qa-skills@wewo-qa-skills
 ```
 
@@ -130,5 +144,7 @@ python -B tooling/validate_package.py --release
 CI 在各平台构建、冒烟和打包，再收集四个平台的产物检查版本、源码契约和文件哈希。CI 上传的运行工具及 ZIP **不会自动写回 Git 仓库或更新已安装插件**；从 Git 市场分发时，维护者仍须确保仓库中的对应运行工具已同步。打包后的 README 保留测试人员说明，去掉本维护章节。
 
 `tooling/requirements-dev.txt` 声明构建依赖范围，并非每个平台的依赖锁定清单。更新依赖或运行工具时，根据实际构建环境和二进制收集内容核对第三方声明，包括传递依赖、可选依赖和本机库；PyInstaller 构建工具与被打入产物的组件应分别说明。
+
+双平台发布沿用 `wewo-skills` 的方式：`origin` 对应 GitHub，`company-gitlab` 对应公司 GitLab；共享改动从 GitHub `main` 合入 GitLab 发布分支，保留 GitLab 自身的市场来源、所有者及插件链接。两个宿主的市场必须指向同一个发布仓库，校验器会拒绝混用来源。每次同步后验证两端的 `skills/`、维护源码和 `bin/` 一致，并分别运行发布校验。GitHub Actions 负责原生构建；GitLab 分发经验证的相同运行工具。这是两个独立远端，推送一个不会自动同步另一个，不能把 GitHub 分支直接覆盖到 GitLab 发布分支。
 
 工具校验通过只说明产物和执行证据符合约束，业务理解及覆盖仍需测试人员确认。第三方声明随运行工具分发；公司产物、凭据和登录态不提交到仓库。仅在用户明确要求上传当前修改时推送 GitHub。

@@ -14,7 +14,9 @@ from urllib.parse import unquote, urlparse
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN_NAME = "wewo-qa-skills"
 DISPLAY_NAME = "Wewo QA Skills"
-SOURCE_URL = "https://github.com/successfulspring/wewo-qa-skills.git"
+GITHUB_SOURCE_URL = "https://github.com/successfulspring/wewo-qa-skills.git"
+GITLAB_SOURCE_URL = "http://192.168.1.205/skills/wewo-qa-skills.git"
+APPROVED_SOURCE_URLS = frozenset((GITHUB_SOURCE_URL, GITLAB_SOURCE_URL))
 EXPECTED_SKILLS = {"wewo-qa-case-designer", "wewo-qa-case-executor"}
 EXPECTED_SKILL_RESOURCES = {
     "wewo-qa-case-designer": {
@@ -105,6 +107,7 @@ def validate_manifests(errors: list[str]) -> None:
 
 
 def validate_marketplaces(errors: list[str]) -> None:
+    selected_sources: set[str] = set()
     for relative in MARKETPLACES:
         marketplace = load_json(ROOT / relative, errors)
         if marketplace.get("name") != PLUGIN_NAME:
@@ -118,8 +121,12 @@ def validate_marketplaces(errors: list[str]) -> None:
             errors.append(f"{relative}: plugin entry must be {PLUGIN_NAME}")
             continue
         source = entry.get("source")
-        if not isinstance(source, dict) or source.get("source") != "url" or source.get("url") != SOURCE_URL:
-            errors.append(f"{relative}: source must reference {SOURCE_URL}")
+        source_url = source.get("url") if isinstance(source, dict) else None
+        if (not isinstance(source, dict) or source.get("source") != "url"
+                or not isinstance(source_url, str) or source_url not in APPROVED_SOURCE_URLS):
+            errors.append(f"{relative}: source must reference an approved GitHub or GitLab repository URL")
+        else:
+            selected_sources.add(source_url)
         if relative == Path(".agents/plugins/marketplace.json"):
             if not isinstance(source, dict) or source.get("ref") != "main":
                 errors.append(f"{relative}: Codex source ref must be main")
@@ -128,6 +135,8 @@ def validate_marketplaces(errors: list[str]) -> None:
                 errors.append(f"{relative}: required installation policy is missing")
             if entry.get("category") != "Productivity":
                 errors.append(f"{relative}: category must be Productivity")
+    if len(selected_sources) > 1:
+        errors.append("Claude and Codex marketplaces must reference the same distribution repository")
 
 
 def parse_frontmatter(path: Path, errors: list[str]) -> dict[str, str]:
