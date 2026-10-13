@@ -17,7 +17,9 @@ qa-artifacts/<feature>/
     `-- runs/<run-id>/           # frozen profiles/results/raw evidence
 ```
 
-The tester receives XMind + three Excel files, then the execution report. Technical handoffs remain private. Project automation code belongs in the actual project's test directories. No generation Python files, JSON baselines, caches or draft duplicates belong at the delivery root. `validate-deliverables` enforces the four design files and their agreement; it does not remove files. Preserve user inputs and older evidence during migration.
+The tester receives XMind + three Excel files, then the execution report. Keep technical handoff state under `.qa-state/` and retain it when transferring the reviewed artifact directory to Executor. Executor reuses an authorized automation workspace or creates persistent `qa-automation/<artifact-id>/` beside `qa-artifacts/`, following [independent acceptance automation](../../wewo-qa-case-executor/references/native-automation.md#workspace-and-implementation). Product source is not required.
+
+No generation helpers, automation scripts, JSON baselines, caches or draft duplicates belong at the delivery root. `validate-deliverables` enforces the four design files and their agreement; it does not remove files. Preserve user inputs and older evidence during migration.
 
 Context schema is 1.4, points 1.4, manifest 1.6, Excel format 1.4. The importer also accepts existing Chinese format 1.3 workbooks. Earlier requirement baselines are review input: reread sources, reconcile verifiable dialogue/current units, complete requirement readiness, backfill clause extraction, derive/freeze coverage and split independent outcomes before reexport; do not just change version numbers or invent confirmations. Store the actual final-requirement confirmation response/ref/digest separately from source fact status, coverage-plan freezing and later XMind confirmation. No helper can legitimately invent a user response.
 

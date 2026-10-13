@@ -1,6 +1,6 @@
 {
   "name": "wewo-qa-skills",
-  "version": "0.4.0",
+  "version": "0.2.0",
   "description": "Clarify requirements, design XMind test points and Excel cases, then run durable acceptance automation against a deployed test environment and report evidence.",
   "author": {
     "name": "Wewo",
