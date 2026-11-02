@@ -45,7 +45,8 @@ def _topic_title(node: dict[str, Any], language=DEFAULT_LANGUAGE) -> str:
     if node["id"] == "TP-ROOT":
         return node["title"]
     separator = "｜" if language == DEFAULT_LANGUAGE else " | "
-    return node["id"] + separator + node["title"]
+    pending = (ArtifactText(language)('待确认') + ' [' + ', '.join(node.get('question_refs', [])) + ']' + separator) if node['status'] == 'pending' else ''
+    return node["id"] + separator + pending + node["title"]
 
 
 def _topic_note(node: dict[str, Any], language=DEFAULT_LANGUAGE) -> str:
@@ -69,7 +70,8 @@ def _topic_note(node: dict[str, Any], language=DEFAULT_LANGUAGE) -> str:
     if node.get("outcome_ref"):
         lines.append(field("独立检查结果", node["outcome_ref"]))
     if node.get("verification"):
-        lines.extend(field(label, node["verification"][key])
+        from draft_design import pending_text
+        lines.extend(field(label, node["verification"].get(key, pending_text(node, tr)))
             for key, label in (("condition", "条件"), ("action", "动作"), ("expected", "预期")))
     return "\n".join(lines)
 
@@ -161,7 +163,7 @@ def _render_legacy(test_points: dict[str, Any]) -> dict[str, bytes]:
         '<meta xmlns="urn:xmind:xmap:xmlns:meta:2.0" version="2.0">'
         '<Author><Name>Wewo QA</Name><Email/><Org>Wewo</Org></Author>'
         f'<Create><Time>{created}</Time></Create>'
-        '<Creator><Name>Wewo QA Case Designer</Name><Version>0.2</Version></Creator>'
+        '<Creator><Name>Wewo QA Case Designer</Name><Version>0.3</Version></Creator>'
         '</meta>'
     ).encode("utf-8")
     styles = (
@@ -188,6 +190,10 @@ def _render_legacy(test_points: dict[str, Any]) -> dict[str, bytes]:
 
 
 def render_xmind_bytes(test_points: dict[str, Any], output_format: str = "legacy", *, draft: bool = False) -> bytes:
+    from draft_design import is_draft
+    from artifact_tools import ValidationFailure
+    if is_draft(test_points) and not draft:
+        raise ValidationFailure(['draft test points must retain the visible draft label'])
     language = output_language(test_points)
     tr = ArtifactText(language)
     if draft:

@@ -17,6 +17,12 @@ def output_language(artifact):
 # Chinese labels preserve existing workbook imports. They are presentation keys,
 # not business vocabulary or project-specific requirements.
 ENGLISH = {
+    '待确认':'Pending confirmation', '已明确':'Specified', '正式版本':'Final', '设计状态':'Design Status',
+    '关联问题':'Question References', '待确认问题':'Open Questions', '待确认内容':'Unresolved Rule', '可选处理方式':'Options', '疑问编号':'Question ID',
+    '保留已有编号。业务答复统一更新规则、测试点和用例；无需分别确认 XMind 和 Excel。':
+        'Keep existing IDs. Business answers update rules, points and cases together; no separate XMind or Excel approval is needed.',
+    '待确认问题汇总在全量文件。状态和问题关联由 Designer 更新；填写预期不会自动确认业务规则。':
+        'The full workbook lists open questions. Designer reconciles status and question links; entering an expectation does not confirm a business rule.',
     "测试用例":"Test Cases", "必检断言":"Required Assertions", "自动化评估":"Automation Assessment",
     "运行条件":"Runtime Requirements", "设计依据":"Design Basis", "设计复查":"Design Review", "使用说明":"Instructions",
     "用例编号":"Case ID", "模块路径":"Module Path", "用例名称":"Case Title", "优先级":"Priority", "风险":"Risk",
@@ -50,12 +56,10 @@ ENGLISH = {
         "Step expectations support reading; required assertions determine execution judgments. After editing an expectation, review consistency between both representations and the test points.",
     "文本和数值直接填写，布尔填是/否；仅列表和对象采用 JSON。空值及不适用留空。前后不变和证据评判的比较值类型选择不适用。检查时机必须明确，证据评判填写客观标准。":
         "Enter text and numbers directly; use Yes/No for booleans and JSON only for lists and objects. Leave Null and Not Applicable values empty. Select Not Applicable for Unchanged and Evidence Review checks. Specify timing and objective evidence-review criteria.",
-    "这两张表由已确认设计生成。发现遗漏时交给 Designer 更新规则、覆盖项和 XMind，再重新导出；直接修改会被拦截。":
-        "These sheets are generated from the confirmed design. Ask Designer to reconcile omissions in rules, coverage and XMind before reexporting. Direct edits are rejected.",
+    "这两张表由当前设计生成。发现遗漏时交给 Designer 更新规则、覆盖项和 XMind，再重新导出；直接修改会被拦截。":
+        "These sheets are generated from the current design. Ask Designer to reconcile omissions in rules, coverage and XMind before reexporting. Direct edits are rejected.",
     "修改 Excel 后使用 import-case-workbook 读回待审清单；完成语义审查后更新基线并重新导出。执行前 validate-case-workbook 必须通过。":
         "After editing Excel, use import-case-workbook to read pending changes. Review their meaning, update the baseline and reexport. validate-case-workbook must pass before execution.",
-    "保留已有用例、测试点和断言编号；新增或删除时同步各明细表。新业务规则需要更新并确认 XMind。":
-        "Keep existing case, point and assertion IDs. Synchronize detail sheets when adding or removing records. New business rules require an updated and confirmed XMind.",
     "此表仅定义需要什么；实际环境和安全会话引用在运行时收集。请勿填密码、令牌或登录 cookie。":
         "This sheet defines what is needed. Actual environment and secure session references are collected at execution time. Do not enter passwords, tokens or login cookies.",
     "长内容完整保存在单元格中，可在编辑栏查看；禁止在业务单元格使用公式。":

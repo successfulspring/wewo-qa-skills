@@ -21,7 +21,7 @@ def source_texts(context):
             **{d["id"]: d["resolution"] for d in context["decisions"] if d["status"] != "superseded"}}
 
 
-def extraction_errors(context, *, final):
+def extraction_errors(context, *, final, complete=False):
     errors = []
     origins = source_texts(context)
     items = {i["id"]: i for i in context["requirement_items"]}
@@ -36,6 +36,8 @@ def extraction_errors(context, *, final):
             errors.append(tag + ": unknown, unread or excluded extraction origin " + origin)
             continue
         start, end = item["start"], item["end"]
+        if item.get('claim_type') in {'implementation_report', 'background'} and item['disposition'] == 'requirement':
+            errors.append(tag + ': implementation reports and background cannot define a business oracle')
         if not 0 <= start < end <= len(text) or not text[start:end].strip():
             errors.append(tag + ": invalid source character span")
         else:
@@ -58,10 +60,10 @@ def extraction_errors(context, *, final):
         for start, end, tag in sorted(spans[origin]):
             if start < cursor:
                 errors.append(tag + ": overlapping source clauses")
-            if final and text[cursor:start].strip():
+            if (final or complete) and text[cursor:start].strip():
                 errors.append(f"{origin}: unaccounted source content at characters {cursor}:{start}")
             cursor = max(cursor, end)
-        if final and text[cursor:].strip():
+        if (final or complete) and text[cursor:].strip():
             errors.append(f"{origin}: unaccounted source content at characters {cursor}:{len(text)}")
     for rule in rules.values():
         rid = rule["id"]
@@ -71,6 +73,10 @@ def extraction_errors(context, *, final):
             item = items.get(ref)
             if not item or item["disposition"] != "requirement" or rid not in item["rule_refs"]:
                 errors.append(rid + ": unknown or unlinked requirement item " + ref)
+        if rule['status'] == 'confirmed' and rule['requirement_refs'] and not any(
+                items.get(ref, {}).get('claim_type', 'business_requirement') == 'business_requirement'
+                for ref in rule['requirement_refs']):
+            errors.append(rid + ': confirmed expectation lacks a business requirement')
     return errors
 
 

@@ -87,7 +87,10 @@ class ArtifactLanguageTests(unittest.TestCase):
         path = self.root / "test-cases.full.xlsx"
         book = load_workbook(path)
         self.assertIn("测试用例", book.sheetnames)
-        # Recreate the prior format's metadata; its Chinese sheets and values are unchanged.
+        # Recreate the actual older layout, before status/question columns existed.
+        del book['待确认问题']
+        for sheet in ('测试用例', '必检断言'):
+            book[sheet].delete_cols(book[sheet].max_column - 1, 2)
         metadata = book["_baseline"]
         for row in list(metadata.iter_rows()):
             if row[0].value == "format":
@@ -149,11 +152,11 @@ class ArtifactLanguageTests(unittest.TestCase):
         with self.assertRaises(ValidationFailure):
             render_case_workbook(manifest, "0" * 64, {}, context)
 
-    def test_language_change_invalidates_the_recorded_requirement_snapshot(self):
+    def test_language_change_preserves_business_confirmation(self):
         context, _, _, _ = artifact_set(self.root)
         original = requirement_digest(context)
         context["project"]["output_language"] = "en"
-        self.assertNotEqual(requirement_digest(context), original)
+        self.assertEqual(requirement_digest(context), original)
 
     def test_both_xmind_formats_localize_generated_text_and_preserve_literals(self):
         _, points, _, _ = self.english()
@@ -187,7 +190,8 @@ class ArtifactLanguageTests(unittest.TestCase):
         book = load_workbook(io.BytesIO(render_case_workbook(manifest, "0" * 64, {}, context, "smoke")))
         try:
             self.assertEqual(book["Test Cases"].max_row, 1)
-            self.assertIn("Smoke case file", book["Instructions"]["B3"].value)
+            instructions = dict(book['Instructions'].iter_rows(min_row=2, values_only=True))
+            self.assertIn("Smoke case file", instructions['Suite'])
         finally:
             book.close()
 

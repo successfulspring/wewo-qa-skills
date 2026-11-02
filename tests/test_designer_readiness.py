@@ -195,11 +195,11 @@ class DesignerReadinessTests(unittest.TestCase):
         seal_synthetic_readiness(self.context)
         self.assertTrue(any("no decision or explicit pending" in e for e in readiness_errors(self.context)))
 
-    def test_later_dialogue_requires_a_new_summary_even_if_hashes_are_rewritten(self):
+    def test_later_unanswered_question_still_requires_resolution(self):
         self.context["dialogue_events"].append({"id":"EVT-QUESTION-002", "kind":"question", "message_ref":"synthetic://q2",
             "text":"[SYNTHETIC] What happens to the counter after expiry?", "question_ids":["Q-RU002-02"]})
         seal_synthetic_readiness(self.context)
-        self.assertTrue(any("summary predates" in e for e in readiness_errors(self.context, confirmed=True)))
+        self.assertTrue(any("no decision or explicit pending" in e for e in readiness_errors(self.context, confirmed=True)))
 
     def test_excluded_unit_does_not_require_invented_confirmed_facts(self):
         self.points["requirement_units"].append({"id":"RU-003", "title":"Deferred recovery behavior", "source_refs":["SRC-001"],
@@ -227,7 +227,7 @@ class DesignerReadinessTests(unittest.TestCase):
 
     def test_summary_must_be_the_current_displayed_summary_with_actual_reply(self):
         self.context["dialogue_events"][2]["snapshot_sha256"] = "0" * 64
-        self.assertTrue(any("displayed final summary" in e for e in readiness_errors(self.context, confirmed=True)))
+        self.assertTrue(any("displayed summary" in e for e in readiness_errors(self.context, confirmed=True)))
         self.context["requirement_confirmation"]["response_text"] = "AI-generated approval"
         self.assertTrue(any("actual reply" in e for e in readiness_errors(self.context, confirmed=True)))
 
@@ -280,10 +280,9 @@ class DesignerReadinessTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationFailure, "walk every case"):
             validate_manifest_data(self.manifest, self.points)
 
-    def test_timestamp_alone_is_not_xmind_confirmation(self):
-        self.manifest["test_points_baseline"].pop("response_text")
-        with self.assertRaisesRegex(ValidationFailure, "actual tester confirmation"):
-            validate_manifest_data(self.manifest, self.points)
+    def test_reviewed_tree_needs_no_separate_human_confirmation(self):
+        self.assertNotIn("response_text", self.manifest["test_points_baseline"])
+        validate_manifest_data(self.manifest, self.points)
 
 
 if __name__ == "__main__":

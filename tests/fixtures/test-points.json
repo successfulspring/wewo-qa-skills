@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.4",
+  "schema_version": "1.5",
   "generated_at": "2026-09-04T09:55:00+08:00",
   "project": {
     "name": "示例会员系统",
@@ -302,10 +302,10 @@
   },
   "design_context_baseline": {
     "path": "design-context.json",
-    "sha256": "b130242704183bcbddde9b7418796c60379bd72b1ba5f37198b18334cc7f583f"
+    "sha256": "bec4ba56ebaec92e603ed4ed9f88190605959976e9208570a0aec8d1c70e3d2a"
   },
   "design_review": {
-    "snapshot_sha256": "eb59559378e5c655514f7bf6d2cbc039c231b0f7a61cfa50e81b0eb95b7d69e1",
+    "snapshot_sha256": "4012ac1c9faabefc5b363acdeb708a0b9f60c8ec27933ff4ed93e334ba7f87b4",
     "checked_leaf_refs": [
       "TP-LOGIN-SUCCESS",
       "TP-LOGIN-NICKNAME",

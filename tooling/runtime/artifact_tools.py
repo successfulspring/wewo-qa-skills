@@ -94,6 +94,11 @@ def validate_test_points_data(test_points: Any, context: dict[str, Any] | None =
     errors = schema_errors(test_points, TEST_POINTS_SCHEMA_PATH)
     if errors or not isinstance(test_points, dict):
         raise ValidationFailure(errors or ["$: test points must be an object"])
+    from draft_design import is_draft, pending_errors
+    if final and is_draft(test_points):
+        errors.append('draft test points cannot be used as a final baseline')
+    errors.extend(pending_errors(test_points['tree'], final=final or not is_draft(test_points),
+                                 questions={q['id'] for q in context['open_questions']} if context else None))
 
     sources = test_points["sources"]
     decisions = test_points["decisions"]
@@ -177,10 +182,10 @@ def validate_test_points_data(test_points: Any, context: dict[str, Any] | None =
         from design_context import validate_design_context_data
         validate_design_context_data(context, final=final)
         from requirement_readiness import readiness_errors, point_decisions, point_units
-        errors.extend(readiness_errors(context, confirmed=True))
+        errors.extend(readiness_errors(context, confirmed=True, final=final))
         from requirement_coverage import plan_digest
-        if context["coverage_plan"]["status"] != "frozen" or context["coverage_plan"].get("sha256") != plan_digest(context):
-            errors.append("test points require a frozen, unchanged coverage plan, including for XMind review drafts")
+        if final and (context["coverage_plan"]["status"] != "frozen" or context["coverage_plan"].get("sha256") != plan_digest(context)):
+            errors.append("final test points require a frozen, unchanged coverage plan")
         if any(context["project"][key] != test_points["project"][key] for key in ("name", "artifact_id")):
             errors.append("design context project does not match test points")
         from artifact_language import output_language
@@ -259,6 +264,10 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
     errors = schema_errors(manifest, MANIFEST_SCHEMA_PATH)
     if errors or not isinstance(manifest, dict):
         raise ValidationFailure(errors or ["$: manifest must be an object"])
+    from draft_design import is_draft, pending_errors
+    if final and is_draft(manifest):
+        errors.append('draft cases cannot enter execution; resolve questions with Designer')
+    errors.extend(pending_errors(manifest['cases'], final=final or not is_draft(manifest)))
 
     sources = manifest["sources"]
     decisions = manifest["decisions"]
@@ -312,7 +321,9 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
     leaf_test_point_ids: set[str] = set()
     leaf_expectations: dict[str, str] = {}
     if test_points is not None:
-        validate_test_points_data(test_points)
+        validate_test_points_data(test_points, final=final)
+        if is_draft(manifest) != is_draft(test_points):
+            errors.append('manifest stage differs from test points')
         for key in ("name", "artifact_id", "requirement", "baseline"):
             if manifest["project"][key] != test_points["project"][key]:
                 errors.append(f"project.{key} does not match test-points.json")
@@ -335,6 +346,12 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
             for key in ("topic", "resolution", "status", "rationale"):
                 if decision.get(key) != baseline_decision.get(key):
                     errors.append(f"{decision['id']}: manifest decision.{key} differs from test-points.json")
+            if decision.get('evidence_kind', 'dialogue') != baseline_decision.get('evidence_kind', 'dialogue'):
+                errors.append(f"{decision['id']}: manifest decision evidence kind differs from test-points.json")
+            if baseline_decision.get('evidence_kind') == 'document':
+                for key in ('unit_id', 'requirement_refs', 'approval_refs', 'approved_by', 'applicability', 'question_id', 'question_event_ref'):
+                    if decision.get(key) != baseline_decision.get(key):
+                        errors.append(f"{decision['id']}: manifest document decision.{key} differs from test-points.json")
         point_targets = {item["id"]: item for item in test_points["project"]["targets"]}
         for target in targets:
             if point_targets.get(target["id"]) != target:
@@ -342,7 +359,8 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
         leaf_test_point_ids = {
             node["id"] for node in walk_test_points(test_points["tree"]) if not node["children"]
         }
-        leaf_expectations = {node["id"]: node["verification"]["expected"] for node in walk_test_points(test_points["tree"]) if not node["children"] and "verification" in node}
+        leaf_expectations = {node["id"]: node["verification"].get("expected") for node in walk_test_points(test_points["tree"]) if not node["children"] and "verification" in node}
+        leaf_by_id = {node['id']: node for node in walk_test_points(test_points['tree']) if not node['children']}
 
     for decision in decisions:
         if decision["status"] == "assumed" and not decision.get("rationale", "").strip():
@@ -410,12 +428,18 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
         if asserted_points != set(case["test_point_refs"]):
             errors.append(f"{case_id}: planned assertions must exactly cover case test-point references")
         for assertion in assertions.values():
-            if final and test_points is not None:
+            if test_points is not None:
+                for pid in assertion['test_point_refs']:
+                    leaf = leaf_by_id.get(pid, {})
+                    if (assertion.get('status') == 'pending') != (leaf.get('status') == 'pending') or set(assertion.get('question_refs', [])) != set(leaf.get('question_refs', [])):
+                        errors.append(assertion['id'] + ': pending assertion and leaf question references disagree')
+            if (final or is_draft(manifest)) and test_points is not None:
                 for pid in assertion["test_point_refs"]:
-                    if pid in leaf_expectations and assertion["expected"] != leaf_expectations[pid]:
+                    if pid in leaf_expectations and assertion.get("expected") != leaf_expectations[pid]:
                         errors.append(f"{case_id}/{assertion['id']}: assertion expectation differs from confirmed leaf {pid}; reconcile the business baseline before final export")
             from observation_checks import check_errors
-            errors.extend(f"{case_id}/{assertion['id']}: {e}" for e in check_errors(assertion["check"]))
+            if assertion.get('status') != 'pending':
+                errors.extend(f"{case_id}/{assertion['id']}: {e}" for e in check_errors(assertion["check"]))
             if not set(assertion["target_ids"]) <= applicable:
                 errors.append(f"{case_id}/{assertion['id']}: assertion has non-applicable target")
         for target_id in applicable:
@@ -490,7 +514,7 @@ def validate_manifest_file(path: Path, *, final: bool = True) -> dict[str, Any]:
         raise ValidationFailure([f"test-point baseline does not exist: {test_points_path}"])
     if sha256_file(test_points_path) != baseline["sha256"]:
         raise ValidationFailure(["test_points_baseline.sha256 does not match test-points.json"])
-    test_points = validate_test_points_file(test_points_path)
+    test_points = validate_test_points_file(test_points_path, final=final)
     validate_manifest_data(manifest, test_points, final=final)
     context = load_json(path.parent / "design-context.json")
     anchors = {f"{s['source_id']}#{s['anchor']}" for s in context["segments"] if s["read_status"] == "read" and s["disposition"] != "excluded"}

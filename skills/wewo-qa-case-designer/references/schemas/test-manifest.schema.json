@@ -16,7 +16,11 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "1.6"
+      "enum": [
+        "1.6",
+        "1.7",
+        "1.8"
+      ]
     },
     "generated_at": {
       "type": "string",
@@ -83,8 +87,7 @@
       "additionalProperties": false,
       "required": [
         "path",
-        "sha256",
-        "confirmed_at"
+        "sha256"
       ],
       "properties": {
         "path": {
@@ -246,6 +249,13 @@
       "required": [
         "status"
       ]
+    },
+    "stage": {
+      "enum": [
+        "draft",
+        "final"
+      ],
+      "default": "final"
     }
   },
   "$defs": {
@@ -392,6 +402,19 @@
         "sha256": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
+        },
+        "role": {
+          "enum": [
+            "product",
+            "development",
+            "mixed",
+            "reference",
+            "unknown"
+          ]
+        },
+        "applies_to": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -425,8 +448,97 @@
         },
         "rationale": {
           "type": "string"
+        },
+        "evidence_kind": {
+          "enum": [
+            "dialogue",
+            "document"
+          ]
+        },
+        "requirement_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "approval_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "approved_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "applicability": {
+          "type": "string",
+          "minLength": 1
+        },
+        "question_event_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "question_id": {
+          "type": "string",
+          "pattern": "^(Q[1-9][0-9]*\\.[1-9][0-9]*|Q-RU[0-9]{3,}-[0-9]{2,})$"
+        },
+        "unit_id": {
+          "type": "string",
+          "pattern": "^RU-[0-9]{3,}$"
+        },
+        "selected_options": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-D]$"
+          }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "evidence_kind": {
+                "const": "document"
+              }
+            },
+            "required": [
+              "evidence_kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "requirement_refs",
+              "approval_refs",
+              "approved_by",
+              "applicability"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "response_event_ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "selected_options"
+                  ]
+                }
+              ]
+            }
+          },
+          "else": {}
+        }
+      ]
     },
     "step": {
       "type": "object",
@@ -901,17 +1013,65 @@
             "kind",
             "timing"
           ]
+        },
+        "status": {
+          "enum": [
+            "confirmed",
+            "pending"
+          ]
+        },
+        "question_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
         }
       },
       "required": [
         "id",
         "description",
         "observation",
-        "expected",
         "test_point_refs",
         "target_ids",
-        "required_evidence",
-        "check"
+        "required_evidence"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pending"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "question_refs"
+            ],
+            "not": {
+              "required": [
+                "check"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "expected",
+              "check"
+            ],
+            "not": {
+              "required": [
+                "question_refs"
+              ]
+            }
+          }
+        }
       ]
     }
   }

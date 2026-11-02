@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -17,12 +16,10 @@ DIMENSIONS = {"positive", "negative", "boundary", "state", "role", "cross-object
 
 
 def requirement_digest(context):
-    """Confirmation covers business facts, independently of later test derivation."""
-    snapshot = {k: context[k] for k in ("project", "sources", "segments", "decisions", "objects", "relationships", "flows", "requirement_items", "requirement_units", "open_questions", "branch_reviews")}
-    # Summary/confirmation events refer to this digest, so cannot be its inputs.
-    snapshot["dialogue_events"] = [e for e in context["dialogue_events"] if e["kind"] in {"question", "answer"}]
-    snapshot["rules"] = [{k:v for k,v in r.items() if k not in {"coverage", "design_models", "factors"}} for r in context["rules"]]
-    return hashlib.sha256(json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    """Business fingerprint; bookkeeping alone does not invalidate user confirmation."""
+    from requirement_confirmation import business_snapshot
+    from requirement_coverage import digest
+    return digest(business_snapshot(context))
 
 
 def validate_design_context_data(context: Any, *, final: bool = True) -> None:
@@ -37,6 +34,8 @@ def validate_design_context_data(context: Any, *, final: bool = True) -> None:
     decisions = {x["id"]: x for x in context["decisions"]}
     objects = {x["id"]: x for x in context["objects"]}
     rules = {x["id"]: x for x in context["rules"]}
+    from draft_design import pending_errors
+    errors.extend(pending_errors(context['rules'], final=final, questions={q['id'] for q in context['open_questions']}))
     anchors: set[tuple[str, str]] = set()
     referenced_segments: set[str] = set()
 
@@ -146,15 +145,22 @@ def validate_design_context_data(context: Any, *, final: bool = True) -> None:
 def validate_design_context_file(path: Path, *, final: bool = True) -> dict[str, Any]:
     context = load_json(path)
     validate_design_context_data(context, final=final)
+    from source_updates import validate_update_files
+    validate_update_files(context, path)
     return context
 
 
 def digest_main():
     parser = argparse.ArgumentParser(description="Print the business snapshot hash; does not confirm requirements.")
     parser.add_argument("context", type=Path)
+    parser.add_argument('--snapshot', action='store_true', help='Print the business baseline map to preserve with the displayed overall summary.')
     args = parser.parse_args()
     context = validate_design_context_file(args.context.resolve(), final=False)
-    print(requirement_digest(context))
+    if args.snapshot:
+        from requirement_confirmation import business_snapshot
+        print(json.dumps({'snapshot_sha256':requirement_digest(context), 'baseline':business_snapshot(context)}, ensure_ascii=False, indent=2))
+    else:
+        print(requirement_digest(context))
     return 0
 
 

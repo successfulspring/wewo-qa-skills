@@ -133,8 +133,15 @@ def derivation_links(context, leaves, *, final):
                 linked_outcomes.append(oid)
                 if oid not in outcomes:
                     errors.append(pid + ": leaf must identify one planned independent outcome")
-                elif leaf["verification"] != {"condition": item["condition"], "action": item["action"], "expected": outcomes[oid]["expected"]}:
-                    errors.append(pid + ": leaf verification differs from its frozen condition, trigger or outcome")
+                else:
+                    outcome = outcomes[oid]
+                    expected = {"condition": item["condition"], "action": item["action"]}
+                    if 'expected' in outcome:
+                        expected['expected'] = outcome['expected']
+                    if leaf['verification'] != expected:
+                        errors.append(pid + ": leaf verification differs from its frozen condition, trigger or outcome")
+                    if (leaf.get('status') == 'pending') != (outcome.get('status') == 'pending') or set(leaf.get('question_refs', [])) != set(outcome.get('question_refs', [])):
+                        errors.append(pid + ': pending outcome and leaf question references disagree')
             pairs.add((cid, pid))
         if final and (set(linked_outcomes) != set(outcomes) or len(linked_outcomes) != len(outcomes)):
             errors.append(cid + ": split each independent outcome into its own leaf; planned outcomes are missing or combined")

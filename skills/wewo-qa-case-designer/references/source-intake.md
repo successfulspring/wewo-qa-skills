@@ -4,6 +4,8 @@
 
 Assign stable `SRC-*` IDs. Record locator, title, revision or hash, retrieval time, authority, included/excluded scope, extraction method and completeness. Requirement authorities, current project context and company XMind/Excel examples serve different purposes. A test example does not establish an undocumented product rule.
 
+Record `role` as product, development, mixed, reference or unknown, and `applies_to` when the version/scope is supplied. Role is separate from authority. Preserve actual approval evidence rather than promoting a document because its author reviewed it. Classify mixed content clause by clause. Product material may be sufficient before implementation; later sources use [source updates](source-updates.md). Offer the [handoff guide](handoff-guide.md) when contributors ask how to summarize, not as a mandatory reformatting step.
+
 Enumerate document sections/pages, spreadsheet sheets (including hidden sheets), prototype pages and flow diagrams, XMind sheets/topics/notes/relationships, pictures and referenced requirement links. Maintain anchored `SEG-*` segments in `design-context.json`. Empty extraction is a failure, not an empty requirement.
 
 Apply the pre-implementation evidence boundary in [design context](design-context.md). Source inventory covers requirement and business material, not product-code discovery. Read prototype links as design material; do not require access to the new implemented feature to generate cases.

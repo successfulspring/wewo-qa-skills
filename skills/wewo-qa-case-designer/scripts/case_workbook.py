@@ -17,6 +17,7 @@ from artifact_tools import (
 from artifact_layout import SUITES, case_workbook_path
 from xlsx_support import load_case_excel, text_cell, workbook_bytes
 from artifact_language import ArtifactText, DEFAULT_LANGUAGE, output_language
+from draft_design import is_draft, question_refs, question_rows, pending_text
 
 
 CASE_HEADERS = ["用例编号", "模块路径", "用例名称", "优先级", "风险", "冒烟", "回归", "全量", "适用目标", "自动化评估", "前置条件", "测试数据", "操作步骤", "步骤预期", "测试点编号", "需求追溯", "运行条件编号", "影响", "需确认", "清理步骤", "标签", "备注", "变体来源"]
@@ -27,7 +28,12 @@ AUTOMATION_HEADERS = ["用例编号", "目标编号", "可行性", "执行路线
 RUNTIME_HEADERS = ["条件编号", "名称", "类型", "范围", "目标编号", "描述", "敏感", "提供方式", "备注"]
 FEASIBILITY = {"automatable": "可自动化", "conditional": "有条件自动化", "manual": "人工执行"}
 RISK = {"high": "高", "medium": "中", "low": "低"}
-FORMAT_VERSION = "1.4"
+FORMAT_VERSION = "1.5"
+LEGACY_CASE_HEADERS = CASE_HEADERS[:]
+LEGACY_ASSERTION_HEADERS = ASSERTION_HEADERS[:]
+CASE_HEADERS += ['设计状态', '关联问题']
+ASSERTION_HEADERS += ['设计状态', '关联问题']
+QUESTION_HEADERS = ['疑问编号', '需求追溯', '待确认内容', '影响', '规则编号', '测试点编号', '用例编号', '可选处理方式']
 COMPARISONS = {"equals":"相等", "contains":"包含文本", "number-equals":"数值相等", "number-delta":"数值变化", "unordered-equals":"列表相等(忽略顺序)", "unchanged":"前后不变", "evidence-review":"证据评判"}
 VALUE_TYPES = ["文本", "数值", "布尔", "列表", "对象", "空值", "不适用"]
 
@@ -122,10 +128,16 @@ def module_paths(test_points: dict[str, Any] | None) -> dict[str, str]:
     return result
 
 
-def render_case_workbook(manifest: dict[str, Any], manifest_sha256: str, paths: dict[str, str] | None, context: dict[str, Any], suite: str = "full") -> bytes:
-    validate_manifest_data(manifest)
+def render_case_workbook(manifest: dict[str, Any], manifest_sha256: str, paths: dict[str, str] | None, context: dict[str, Any], suite: str = "full", *, draft: bool = False) -> bytes:
+    validate_manifest_data(manifest, final=not draft)
+    if draft != is_draft(manifest):
+        raise ValidationFailure(['draft export requires stage=draft; final export requires stage=final'])
     from design_context import validate_design_context_data
-    validate_design_context_data(context)
+    validate_design_context_data(context, final=not draft)
+    from requirement_readiness import readiness_errors
+    errors = readiness_errors(context, confirmed=True, final=not draft)
+    if errors:
+        raise ValidationFailure(errors)
     language = output_language(manifest)
     if language != output_language(context):
         raise ValidationFailure(["project.output_language differs between context and manifest"])
@@ -147,12 +159,14 @@ def render_case_workbook(manifest: dict[str, Any], manifest_sha256: str, paths: 
             _lines(case["test_point_refs"]), _lines(case["source_refs"]), _lines(case["runtime_requirement_refs"]),
             case["safety"]["impact"], tr("是" if case["safety"]["requires_confirmation"] else "否"), _numbered(case["safety"]["cleanup_steps"]),
             _numbered(case.get("tags", [])), case.get("notes", ""), case.get("variant_of", ""),
+            tr('待确认' if question_refs(case) else '已明确'), _lines(sorted(question_refs(case))),
         ])
         for assertion in case["assertions"]:
             step_numbers = [i for i, s in enumerate(case["steps"], 1) if assertion["id"] in s["assertion_refs"]]
-            assertion_rows.append([case["id"], assertion["id"], _lines(step_numbers), _lines(assertion["target_ids"]), _lines(assertion["test_point_refs"]), assertion["description"], assertion["observation"], assertion["expected"], _lines(assertion["required_evidence"])])
-            check = assertion["check"]
-            assertion_rows[-1].extend([comparisons[check["kind"]], *comparison_cells(check, language), check["timing"], check.get("criteria", "")])
+            assertion_rows.append([case["id"], assertion["id"], _lines(step_numbers), _lines(assertion["target_ids"]), _lines(assertion["test_point_refs"]), assertion["description"], assertion["observation"], assertion.get("expected", pending_text(assertion, tr)), _lines(assertion["required_evidence"])])
+            check = assertion.get("check")
+            assertion_rows[-1].extend([comparisons[check["kind"]], *comparison_cells(check, language), check["timing"], check.get("criteria", "")] if check else ['', '', '', '', ''])
+            assertion_rows[-1].extend([tr('待确认' if assertion.get('status') == 'pending' else '已明确'), _lines(assertion.get('question_refs', []))])
         for auto in case["automation"]:
             automation_rows.append([case["id"], auto["target_id"], feasibility[auto["feasibility"]], auto["candidate_route"], _lines(auto["runtime_requirement_refs"]), auto.get("condition", ""), auto.get("reason", ""), _lines(auto["required_evidence"])])
     tr.add_table(workbook, "测试用例", CASE_HEADERS, case_rows,
@@ -166,22 +180,24 @@ def render_case_workbook(manifest: dict[str, Any], manifest_sha256: str, paths: 
         for model in rule["design_models"]:
             for item in model["items"]:
                 method_data = {"model":{k:v for k,v in model.items() if k not in {"id","method","rationale","items"}}, "item":{k:v for k,v in item.items() if k not in {"id","dimensions","condition","action","expected","setup","disposition","reason","test_point_refs"}}}
-                derivations.append([rule["id"], _lines(rule["segment_refs"] + rule["decision_refs"]), model["id"], model["method"], model["rationale"], item["id"], _lines(item["dimensions"]), item["condition"], item["action"], item["expected"], item["setup"], json.dumps(method_data, ensure_ascii=False), item["disposition"], item.get("reason",""), _lines(item["test_point_refs"])])
+                derivations.append([rule["id"], _lines(rule["segment_refs"] + rule["decision_refs"]), model["id"], model["method"], model["rationale"], item["id"], _lines(item["dimensions"]), item["condition"], item["action"], item.get("expected", pending_text(item, tr)), item["setup"], json.dumps(method_data, ensure_ascii=False), item["disposition"], item.get("reason",""), _lines(item["test_point_refs"])])
     for phase, review in [("需求与测试点", context["review"]), ("测试用例", manifest["review"])]:
-        reviews += [[tr(phase), check, "", "", tr("已复查"), review["status"], review.get("notes", "")] for check in review["checks"]]
-        reviews += [[tr(phase), f["category"], f["id"], _lines(f["scope_refs"]), f["description"], f["status"], f.get("resolution", "")] for f in review["findings"]]
+        reviews += [[tr(phase), check, "", "", tr("已复查"), review["status"], review.get("notes", "")] for check in review.get("checks", [])]
+        reviews += [[tr(phase), f["category"], f["id"], _lines(f["scope_refs"]), f["description"], f["status"], f.get("resolution", "")] for f in review.get("findings", [])]
     tr.add_table(workbook, "设计依据", DERIVATION_HEADERS, derivations, {"条件":40,"预期":50,"方法数据":65})
     tr.add_table(workbook, "设计复查", REVIEW_HEADERS, reviews, {"发现":55,"解决记录":65})
     tr.add_table(workbook, "使用说明", ["项目", "说明"], [
         [tr("项目"), manifest["project"]["name"]],
+        [tr('设计状态'), tr('草案（待确认）' if draft else '正式版本')],
         [tr("用例集"), tr({"smoke":"冒烟", "regression":"回归", "full":"全量"}[suite]) + tr("用例文件；共享同一基线编号。")],
         [tr("可编辑"), tr("编辑用例业务字段、必检断言、各目标自动化评估和运行条件。模块路径和主表自动化摘要由基线生成，请在对应明细表修改。")],
         [tr("步骤"), tr("操作步骤、步骤预期、前置条件、测试数据、清理步骤和标签采用 1.、2. 连续编号；条目内换行缩进三个空格。必检断言的步骤序号指向操作编号。多个编号或引用逐行填写。")],
         [tr("判定"), tr("步骤预期供阅读，必检断言是执行判定依据。修改任一预期后必须重新审查二者及测试点的一致性。")],
         [tr("比较值"), tr("文本和数值直接填写，布尔填是/否；仅列表和对象采用 JSON。空值及不适用留空。前后不变和证据评判的比较值类型选择不适用。检查时机必须明确，证据评判填写客观标准。")],
-        [tr("设计依据与复查"), tr("这两张表由已确认设计生成。发现遗漏时交给 Designer 更新规则、覆盖项和 XMind，再重新导出；直接修改会被拦截。")],
+        [tr("设计依据与复查"), tr("这两张表由当前设计生成。发现遗漏时交给 Designer 更新规则、覆盖项和 XMind，再重新导出；直接修改会被拦截。")],
         [tr("修改交接"), tr("修改 Excel 后使用 import-case-workbook 读回待审清单；完成语义审查后更新基线并重新导出。执行前 validate-case-workbook 必须通过。")],
-        [tr("稳定编号"), tr("保留已有用例、测试点和断言编号；新增或删除时同步各明细表。新业务规则需要更新并确认 XMind。")],
+        [tr("稳定编号"), tr("保留已有编号。业务答复统一更新规则、测试点和用例；无需分别确认 XMind 和 Excel。")],
+        [tr('关联问题'), tr('待确认问题汇总在全量文件。状态和问题关联由 Designer 更新；填写预期不会自动确认业务规则。')],
         [tr("运行条件"), tr("此表仅定义需要什么；实际环境和安全会话引用在运行时收集。请勿填密码、令牌或登录 cookie。")],
         [tr("单元格"), tr("长内容完整保存在单元格中，可在编辑栏查看；禁止在业务单元格使用公式。")],
     ], {"项目": 24, "说明": 110})
@@ -191,7 +207,15 @@ def render_case_workbook(manifest: dict[str, Any], manifest_sha256: str, paths: 
     metadata.sheet_state = "veryHidden"
     payload = _canonical(manifest)
     path_payload = _canonical(paths)
-    design_payload = _canonical({"设计依据":derivations, "设计复查":reviews})
+    design_data = {"设计依据":derivations, "设计复查":reviews}
+    if suite == 'full':
+        design_data['待确认问题'] = question_rows(context, manifest)
+        tr.add_table(workbook, '待确认问题', QUESTION_HEADERS, design_data['待确认问题'], {'待确认内容':55,'影响':45,'可选处理方式':55})
+    if draft:
+        for sheet in workbook:
+            if sheet.sheet_state == 'visible':
+                sheet.sheet_properties.tabColor = 'F4B942'
+    design_payload = _canonical(design_data)
     metadata_rows = [["format", FORMAT_VERSION], ["output_language", language], ["suite", suite], ["manifest_sha256", manifest_sha256], ["payload_sha256", hashlib.sha256(payload.encode()).hexdigest()], ["paths_sha256", hashlib.sha256(path_payload.encode()).hexdigest()], ["design_sha256", hashlib.sha256(design_payload.encode()).hexdigest()]]
     # JSON chunks retain non-editable source and project metadata losslessly.
     for i in range(0, len(payload), 30000):
@@ -213,7 +237,7 @@ def read_case_workbook(path: Path) -> tuple[dict[str, Any], dict[str, Any], str]
         metadata_sheet.reset_dimensions()
         metadata = list(metadata_sheet.iter_rows(values_only=True))
         values = {str(r[0]): str(r[1]) for r in metadata if r[0] not in {"payload", "paths", "design"}}
-        if values.get("format") not in {"1.3", FORMAT_VERSION}:
+        if values.get("format") not in {"1.3", "1.4", FORMAT_VERSION}:
             raise ValidationFailure(["unsupported case workbook format; regenerate with the current runtime"])
         payload = "".join(str(r[1]) for r in metadata if r[0] == "payload")
         if hashlib.sha256(payload.encode()).hexdigest() != values.get("payload_sha256"):
@@ -223,12 +247,17 @@ def read_case_workbook(path: Path) -> tuple[dict[str, Any], dict[str, Any], str]
         if suite not in SUITES:
             raise ValidationFailure(["invalid workbook suite"])
         visible_ids = {c["id"] for c in original["cases"] if suite in c["suite_membership"]}
-        validate_manifest_data(original)
+        draft = is_draft(original)
+        validate_manifest_data(original, final=not draft)
+        case_headers = CASE_HEADERS if values['format'] == FORMAT_VERSION else LEGACY_CASE_HEADERS
+        assertion_headers = ASSERTION_HEADERS if values['format'] == FORMAT_VERSION else LEGACY_ASSERTION_HEADERS
         language = DEFAULT_LANGUAGE if values["format"] == "1.3" else values.get("output_language")
         tr = ArtifactText(language)
         if language != output_language(original):
             raise ValidationFailure(["Excel output language does not match its manifest baseline"])
         expected_sheets = {tr(name) for name in ("测试用例", "必检断言", "自动化评估", "运行条件", "设计依据", "设计复查", "使用说明", "_baseline")}
+        if values['format'] == FORMAT_VERSION and suite == 'full':
+            expected_sheets.add(tr('待确认问题'))
         if set(workbook.sheetnames) != expected_sheets:
             raise ValidationFailure(["Excel worksheets changed; preserve the template and its baseline metadata"])
         feasibility, risk, comparisons = tr.labels(FEASIBILITY), tr.labels(RISK), tr.labels(COMPARISONS)
@@ -240,14 +269,17 @@ def read_case_workbook(path: Path) -> tuple[dict[str, Any], dict[str, Any], str]
         if hashlib.sha256(design_payload.encode()).hexdigest() != values.get("design_sha256"):
             raise ValidationFailure(["Excel design metadata was modified"])
         generated = json.loads(design_payload)
-        for sheet, headers in [("设计依据", DERIVATION_HEADERS), ("设计复查", REVIEW_HEADERS)]:
+        generated_sheets = [("设计依据", DERIVATION_HEADERS), ("设计复查", REVIEW_HEADERS)]
+        if values['format'] == FORMAT_VERSION and suite == 'full':
+            generated_sheets.append(('待确认问题', QUESTION_HEADERS))
+        for sheet, headers in generated_sheets:
             actual_rows = [[row[h] for h in headers] for row in tr.read_table(workbook, sheet, headers)]
             if sorted(map(_canonical, actual_rows)) != sorted(map(_canonical, generated[sheet])):
                 raise ValidationFailure([sheet + ": generated design rows changed; update Designer baselines and rerender"])
         candidate = copy.deepcopy(original)
         candidate["cases"] = []
         case_by_id = {}
-        for row in tr.read_table(workbook, "测试用例", CASE_HEADERS):
+        for row in tr.read_table(workbook, "测试用例", case_headers):
             cid = row["用例编号"]
             if any(c["id"] == cid for c in original["cases"]) and cid not in visible_ids:
                 raise ValidationFailure([f"{cid}: belongs to another suite view"])
@@ -274,6 +306,9 @@ def read_case_workbook(path: Path) -> tuple[dict[str, Any], dict[str, Any], str]
                 if row[label]:
                     case[field] = _items(row[label], cid + "/标签") if field == "tags" else row[label]
             old_case = next((c for c in original["cases"] if c["id"] == cid), None)
+            if old_case and values['format'] == FORMAT_VERSION:
+                if row['关联问题'] != _lines(sorted(question_refs(old_case))) or row['设计状态'] != tr('待确认' if question_refs(old_case) else '已明确'):
+                    raise ValidationFailure([cid + ': reconcile pending question links with Designer'])
             if old_case:
                 for field, label in (("preconditions", "前置条件"), ("test_data", "测试数据")):
                     if row[label] == _numbered(old_case[field]):
@@ -295,20 +330,30 @@ def read_case_workbook(path: Path) -> tuple[dict[str, Any], dict[str, Any], str]
                         case[field] = [] if field == "tags" else ""
             candidate["cases"].append(case)
             case_by_id[cid] = (case, row)
-        for row in tr.read_table(workbook, "必检断言", ASSERTION_HEADERS):
+        for row in tr.read_table(workbook, "必检断言", assertion_headers):
             cid = row["用例编号"]
             if cid not in case_by_id:
                 raise ValidationFailure([f"assertion references unknown case {cid}"])
             case = case_by_id[cid][0]
             assertion = {"id": row["断言编号"], "description": row["检查内容"], "observation": row["观察位置"], "expected": row["预期结果"], "target_ids": _list(row["适用目标"]), "test_point_refs": _list(row["测试点编号"]), "required_evidence": _list(row["所需证据"])}
-            check = {"kind":_decode_label(row["比较方式"], comparisons, assertion["id"]), "timing":row["检查时机"]}
-            check.update(comparison_value(row["比较值类型"], row["比较值"], language))
-            if row["判定标准"]:
-                check["criteria"] = row["判定标准"]
             old_assertion = next((a for c in original["cases"] if c["id"] == cid for a in c["assertions"] if a["id"] == assertion["id"]), {})
-            if "criteria" in old_assertion.get("check", {}) and "criteria" not in check:
-                check["criteria"] = ""
-            assertion["check"] = check
+            if values['format'] == FORMAT_VERSION and old_assertion:
+                if row['关联问题'] != _lines(old_assertion.get('question_refs', [])) or row['设计状态'] != tr('待确认' if old_assertion.get('status') == 'pending' else '已明确'):
+                    raise ValidationFailure([assertion['id'] + ': reconcile pending question links with Designer'])
+            if old_assertion.get('status') == 'pending':
+                if any(row[k] for k in ['比较方式','比较值类型','比较值','检查时机','判定标准']):
+                    raise ValidationFailure([assertion['id'] + ': pending assertion cannot contain an executable comparison'])
+                assertion.update(status='pending', question_refs=old_assertion['question_refs'][:])
+                if 'expected' not in old_assertion and row['预期结果'] == pending_text(old_assertion, tr):
+                    assertion.pop('expected')
+            else:
+                check = {"kind":_decode_label(row["比较方式"], comparisons, assertion["id"]), "timing":row["检查时机"]}
+                check.update(comparison_value(row["比较值类型"], row["比较值"], language))
+                if row["判定标准"] or 'criteria' in old_assertion.get('check', {}):
+                    check["criteria"] = row["判定标准"]
+                assertion["check"] = check
+                if 'status' in old_assertion:
+                    assertion['status'] = old_assertion['status']
             case["assertions"].append(assertion)
             for text in _list(row["步骤序号"]):
                 try:
@@ -369,7 +414,7 @@ def read_case_workbook(path: Path) -> tuple[dict[str, Any], dict[str, Any], str]
             candidate["review"].pop("reviewed_at", None)
             candidate["review"]["checks"] = []
             candidate["review"]["notes"] = "Imported Excel edits require source, test-point, step, and assertion consistency review. Previous findings are retained; repeat checks for the new baseline."
-        validate_manifest_data(candidate, final=not changed)
+        validate_manifest_data(candidate, final=not changed and not draft)
         return candidate, original, values["manifest_sha256"]
     except ValidationFailure:
         raise
@@ -379,8 +424,8 @@ def read_case_workbook(path: Path) -> tuple[dict[str, Any], dict[str, Any], str]
         workbook.close()
 
 
-def validate_case_workbook_file(workbook_path: Path, manifest_path: Path) -> None:
-    manifest = validate_manifest_file(manifest_path)
+def validate_case_workbook_file(workbook_path: Path, manifest_path: Path, *, draft=False) -> None:
+    manifest = validate_manifest_file(manifest_path, final=not draft)
     candidate, original, digest = read_case_workbook(workbook_path)
     if digest != sha256_file(manifest_path) or _canonical(original) != _canonical(manifest):
         raise ValidationFailure(["Excel workbook belongs to a stale or different manifest; reconcile and rerender"])
@@ -388,9 +433,9 @@ def validate_case_workbook_file(workbook_path: Path, manifest_path: Path) -> Non
         raise ValidationFailure(["Excel has unreviewed edits; import-case-workbook, review, and rerender before execution"])
 
 
-def validate_case_workbooks(manifest_path):
+def validate_case_workbooks(manifest_path, *, draft=False):
     for suite in SUITES:
-        validate_case_workbook_file(case_workbook_path(manifest_path, suite), manifest_path)
+        validate_case_workbook_file(case_workbook_path(manifest_path, suite), manifest_path, draft=draft)
         book = load_case_excel(case_workbook_path(manifest_path, suite))
         try:
             rows = list(book["_baseline"].iter_rows(values_only=True))
@@ -400,12 +445,30 @@ def validate_case_workbooks(manifest_path):
             book.close()
 
 
-def render_case_workbooks(manifest_path):
+_ABSENT = object()
+
+
+def _edits_preserved(before, edited, reviewed):
+    """Require the user's changed fields, allowing reviewed updates elsewhere."""
+    if before == edited:
+        return True
+    if all(isinstance(value, dict) for value in (before, edited, reviewed)):
+        return all(_edits_preserved(before.get(key, _ABSENT), edited.get(key, _ABSENT), reviewed.get(key, _ABSENT))
+                   for key in before.keys() | edited.keys())
+    if all(isinstance(value, list) for value in (before, edited, reviewed)):
+        if all(all(isinstance(item, dict) and 'id' in item for item in value) for value in (before, edited, reviewed)):
+            return _edits_preserved(*({item['id']: item for item in value} for value in (before, edited, reviewed)))
+        if len(before) == len(edited) == len(reviewed):
+            return all(_edits_preserved(a, b, c) for a, b, c in zip(before, edited, reviewed))
+    return edited == reviewed
+
+
+def render_case_workbooks(manifest_path, *, draft=False):
     from artifact_tools import validate_test_points_file
     from design_context import validate_design_context_file
-    manifest = validate_manifest_file(manifest_path)
-    paths = module_paths(validate_test_points_file(manifest_path.with_name("test-points.json")))
-    context = validate_design_context_file(manifest_path.with_name("design-context.json"))
+    manifest = validate_manifest_file(manifest_path, final=not draft)
+    paths = module_paths(validate_test_points_file(manifest_path.with_name("test-points.json"), final=not draft))
+    context = validate_design_context_file(manifest_path.with_name("design-context.json"), final=not draft)
     outputs = []
     for suite in SUITES:
         output = case_workbook_path(manifest_path, suite)
@@ -417,17 +480,18 @@ def render_case_workbooks(manifest_path):
                     before = {x["id"]:x for x in original[field]}
                     after = {x["id"]:x for x in candidate[field]}
                     reviewed = {x["id"]:x for x in manifest[field]}
-                    if any(before.get(k) != after.get(k) and reviewed.get(k) != after.get(k) for k in set(before) | set(after)):
+                    if any(not _edits_preserved(before.get(k, _ABSENT), after.get(k, _ABSENT), reviewed.get(k, _ABSENT))
+                           for k in set(before) | set(after)):
                         raise ValidationFailure([str(output) + ": unreviewed edits; import and reconcile before exporting"])
-        outputs.append((output, render_case_workbook(manifest, sha256_file(manifest_path), paths, context, suite)))
+        outputs.append((output, render_case_workbook(manifest, sha256_file(manifest_path), paths, context, suite, draft=draft)))
     for output, data in outputs:
         write_bytes_atomic(output, data)
-    validate_case_workbooks(manifest_path)
+    validate_case_workbooks(manifest_path, draft=draft)
     return [p for p, _ in outputs]
 
 
 def import_case_workbooks(manifest_path):
-    manifest = validate_manifest_file(manifest_path)
+    manifest = validate_manifest_file(manifest_path, final=False)
     merged = copy.deepcopy(manifest)
     changes = {}
     for suite in SUITES:
@@ -452,7 +516,7 @@ def import_case_workbooks(manifest_path):
     if changes:
         merged["review"].update(status="pending", checks=[], notes="Suite workbook edits merged; semantic review is required.")
         merged["review"].pop("reviewed_at", None)
-    validate_manifest_data(merged, final=not changes)
+    validate_manifest_data(merged, final=not changes and not is_draft(merged))
     return merged
 
 
@@ -465,19 +529,20 @@ def main(operation=None) -> int:
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--workbook", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--draft", action="store_true", help="Render or validate a labeled draft with linked business questions.")
     args = parser.parse_args()
     manifest_path = args.manifest.resolve()
     try:
         if args.operation == "render":
             if args.output or args.workbook:
                 raise ValidationFailure(["render exports the three canonical suite files; no single-workbook output"])
-            for output in render_case_workbooks(manifest_path):
+            for output in render_case_workbooks(manifest_path, draft=args.draft):
                 print(f"WROTE: {output}")
         elif args.operation == "validate":
-            validate_case_workbooks(manifest_path)
+            validate_case_workbooks(manifest_path, draft=args.draft)
             print("OK: all three Excel suite views match the reviewed manifest")
         else:
-            manifest = validate_manifest_file(manifest_path)
+            manifest = validate_manifest_file(manifest_path, final=False)
             if args.workbook:
                 candidate, original, digest = read_case_workbook(args.workbook.resolve())
                 if digest != sha256_file(manifest_path) or _canonical(original) != _canonical(manifest):

@@ -21,7 +21,7 @@ The tester receives XMind + three Excel files, then the execution report. Keep t
 
 No generation helpers, automation scripts, JSON baselines, caches or draft duplicates belong at the delivery root. `validate-deliverables` enforces the four design files and their agreement; it does not remove files. Preserve user inputs and older evidence during migration.
 
-Context schema is 1.4, points 1.4, manifest 1.6, Excel format 1.4. The importer also accepts existing Chinese format 1.3 workbooks. Earlier requirement baselines are review input: reread sources, reconcile verifiable dialogue/current units, complete requirement readiness, backfill clause extraction, derive/freeze coverage and split independent outcomes before reexport; do not just change version numbers or invent confirmations. Store the actual final-requirement confirmation response/ref/digest separately from source fact status, coverage-plan freezing and later XMind confirmation. No helper can legitimately invent a user response.
+Current contracts are context 1.6, points 1.6, manifest 1.8 and Excel 1.5. Existing context/points 1.5 and manifest 1.7 remain readable. Missing source roles stay unknown and existing decisions retain dialogue semantics. The importer also accepts existing 1.3 Chinese and 1.4 bilingual workbooks. Earlier baselines are review input: reuse verifiable sources and actual dialogue, reconcile extraction and business confirmation, then regenerate. The old requirement digest included conversation history; do not simply relabel versions or rewrite approval hashes. Store actual overall confirmation separately from scoped amendments, internal reviews and artifact stage. No helper can invent a user response.
 
 ## Delivery language
 
@@ -45,32 +45,48 @@ The case, required-assertion, automation-assessment and usage-guide worksheets a
 
 `render-case-workbook` exports all three canonical files to the public root. `validate-case-workbook` checks all views, so editing a different suite cannot be silently ignored. `import-case-workbook` without `--workbook` merges all Excel deltas into pending state; conflicting changes to the same case or runtime need fail for reconciliation. An unchanged overlapping view never overrides an edited one. Review/import every changed view before rerendering; exporters reject unimported edits. Reviewed changes regenerate all files from the same baseline.
 
+## Draft and final state
+
+Points and manifest use stage=draft/final, independent of their review status. Legacy absent stage means final. Use status=pending plus nonempty question_refs on affected rules, coverage items/outcomes, leaves and assertions. Omit unknown expected values; a pending assertion must not carry check. Known assertions keep their real expected and typed check. Pending leaf/outcome/assertion status and question references must agree.
+
+The full workbook has a visible Open Questions sheet with source references, ambiguity, impact, linked rules/points/cases and options. All suites show case/assertion status and question references. This generated view is edited through Designer's context, not maintained separately. A proposed expected value may be imported for a pending assertion without confirming it; status, question links and comparison fields cannot silently make it executable.
+
+Local pending material questions and an unfrozen coverage plan are allowed for draft export after overall confirmation. Final readiness, plan freezing, final exports and Executor reject unresolved business expectations. No fourth duplicate draft workbook or extra public question file is needed.
+
 ```text
 <qa-tool> validate-design-context <root>/.qa-state/design-context.json --draft
-<qa-tool> requirement-digest <root>/.qa-state/design-context.json
-<qa-tool> validate-requirement-readiness <root>/.qa-state/design-context.json
-# Present and preserve the actual summary; wait for and record the real confirmation.
-<qa-tool> validate-requirement-readiness <root>/.qa-state/design-context.json --confirmed
-# Then derive coverage with empty leaf links.
-<qa-tool> freeze-coverage-plan <root>/.qa-state/design-context.json
-# Attach one leaf per independent outcome and perform source-first / visible-tree reviews.
+<qa-tool> requirement-digest <root>/.qa-state/design-context.json --snapshot
+<qa-tool> validate-requirement-readiness <root>/.qa-state/design-context.json --draft
+# Display the overall explanation and record the actual confirmation and baseline.
+<qa-tool> validate-requirement-readiness <root>/.qa-state/design-context.json --draft --confirmed
+# Derive the draft plan, then leaves and cases. Record the performed visible-tree review.
 <qa-tool> design-review-digest <root>/.qa-state/test-points.json
-# Record performed tree review against this fingerprint.
+<qa-tool> render-test-points-xmind <root>/.qa-state/test-points.json --draft
+<qa-tool> render-case-workbook <root>/.qa-state/test-manifest.json --draft
+<qa-tool> validate-case-workbook <root>/.qa-state/test-manifest.json --draft
+<qa-tool> validate-deliverables <root> --draft
+# Deliver four drafts and the question list together; apply actual batch answers.
+# Import Excel edits before regeneration, then reconcile the pending candidate.
+<qa-tool> import-case-workbook <root>/.qa-state/test-manifest.json
+# Resolve pending facts using scoped amendments; refresh the requirement audit.
+<qa-tool> validate-requirement-readiness <root>/.qa-state/design-context.json --confirmed
+# Clear candidate leaf links before freezing; reattach preserved leaves afterward.
+<qa-tool> freeze-coverage-plan <root>/.qa-state/design-context.json
+# Renew source-first, visible-tree and case reviews; set stage=final.
+<qa-tool> design-review-digest <root>/.qa-state/test-points.json
+<qa-tool> design-review-digest <root>/.qa-state/test-manifest.json
 <qa-tool> validate-design-context <root>/.qa-state/design-context.json
 <qa-tool> validate-test-points <root>/.qa-state/test-points.json
-<qa-tool> render-test-points-xmind <root>/.qa-state/test-points.json
-# Preserve the actual XMind confirmation, author and walk every case.
-<qa-tool> design-review-digest <root>/.qa-state/test-manifest.json
-# Record performed per-case reviews against these fingerprints.
 <qa-tool> validate-test-manifest <root>/.qa-state/test-manifest.json
+<qa-tool> render-test-points-xmind <root>/.qa-state/test-points.json
 <qa-tool> render-case-workbook <root>/.qa-state/test-manifest.json
-<qa-tool> validate-case-workbook <root>/.qa-state/test-manifest.json
-<qa-tool> import-case-workbook <root>/.qa-state/test-manifest.json
 <qa-tool> validate-deliverables <root>
 ```
 
-Final requirements precede rendering. Show and confirm the XMind before deriving final cases. When presenting an unconfirmed tree for its review, use `--draft --output <root>/test-points.xmind`, with the draft label; after confirmation rerender the same public filename. Do not accumulate public draft files.
+Overall understanding confirmation precedes rendering. Deliver XMind and all three Excel drafts together using `--draft`; keep the four public filenames when refining and finalizing. Do not insert a separate XMind approval before cases. Use the final commands without `--draft` only after business questions are resolved and internal reviews are current.
 
-Hashes bind context → points → manifest → suite files → run. A source/business change invalidates its confirmation; an Excel edit becomes pending; affected requirements/points need reconfirmation. Validators establish structural consistency, not semantic correctness, actual human authorship or exhaustive coverage.
+Hashes bind context → points → manifest → suite files → run. Reconcile changed business facts through actual scoped answers, retaining the initial confirmation. Refresh affected file bindings and agent reviews; do not obtain approvals merely to refresh hashes. An Excel edit becomes pending for import/review. Validators establish structural consistency, not semantic correctness, actual human authorship or exhaustive coverage.
 
 The execution handoff includes the entire reviewed artifact directory and its baselines. `candidate_route` describes the surface required by the case, not current execution readiness. Use `api` for an interface-defined acceptance target (`surface: api`); do not substitute it for a UI expectation. Executor discovers accounts, data, tools and environment access against the deployed target, without requiring product source.
+
+Later-source updates retain pre-update context, points and manifest in `.qa-state/history/<update-id>/`, after importing user edits. `source_updates.base_context_ref` points to that retained context. Carry the history with the private state during handoff so stopped coverage and amendments remain inspectable. Preserve the same four public design files. Deliver a concise change explanation with the existing shared question view; no additional public tracking file is required. See [source updates](source-updates.md) for document decisions, evidence-only changes and source branch reviews.

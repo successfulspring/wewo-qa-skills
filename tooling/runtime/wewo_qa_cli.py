@@ -18,6 +18,7 @@ import case_workbook
 import design_context
 import requirement_coverage
 import requirement_readiness
+import source_updates
 import design_review
 import extract_source
 import judge_execution_results
@@ -36,6 +37,7 @@ COMMANDS = {
     "validate-design-context": design_context.main,
     "requirement-digest": design_context.digest_main,
     "validate-requirement-readiness": requirement_readiness.main,
+    "summarize-source-update": source_updates.main,
     "design-review-digest": design_review.main,
     "freeze-coverage-plan": requirement_coverage.main,
     "validate-test-points": design_validation.points_main,

@@ -9,7 +9,8 @@ from requirement_coverage import extraction_errors
 
 AUDITS = {"business-coverage", "branch-expansion", "decision-provenance"}
 UNIT_VIEW_FIELDS = {"id", "title", "source_refs", "status", "understanding", "confirmed_facts", "assumptions", "exclusion_reason"}
-DECISION_VIEW_FIELDS = {"id", "unit_id", "question_id", "selected_options", "topic", "resolution", "status", "rationale"}
+DECISION_VIEW_FIELDS = {"id", "unit_id", "question_id", "selected_options", "topic", "resolution", "status", "rationale",
+                        "evidence_kind", "requirement_refs", "approval_refs", "approved_by", "applicability", "question_event_ref"}
 
 
 def active_decisions(context):
@@ -62,7 +63,11 @@ def dialogue_links(context):
                 errors.append(eid + ": reply must refer to an earlier " + expected + " event")
             if kind == "confirmation" and not isinstance(event.get("in_reply_to"), str):
                 errors.append(eid + ": confirmation must reply to one summary event")
-            if kind == "answer":
+            if kind == "answer" or (kind == 'confirmation' and event.get('answer_to')):
+                if kind == 'confirmation':
+                    parents = [preceding.get(ref) for ref in event['answer_to']]
+                    if any(not p or p['kind'] != 'question' for p in parents):
+                        errors.append(eid + ': combined confirmation must answer earlier question batches')
                 available = {}
                 for parent in parents:
                     if not parent or parent["kind"] != "question":
@@ -83,7 +88,7 @@ def dialogue_links(context):
     return errors, asked, answered, latest_answers
 
 
-def dialogue_errors(context, *, ready=False):
+def dialogue_errors(context, *, ready=False, reviewed=False):
     """Check recorded evidence, not whether an answer is true or sufficient."""
     errors, asked, answered, latest_answers = dialogue_links(context)
     units = {u["id"]: u for u in context["requirement_units"]}
@@ -114,15 +119,24 @@ def dialogue_errors(context, *, ready=False):
         did = decision["id"]
         if decision["unit_id"] not in units:
             errors.append(did + ": unknown requirement unit")
-        response_id, qid = decision.get("response_event_ref"), decision["question_id"]
-        occurrence = answered.get(response_id, {}).get(qid)
-        if not occurrence:
-            errors.append(did + ": decision must link its displayed question and actual answer event")
-        current = occurrence == asked.get(qid) and response_id == latest_answers.get(qid)
+        response_id, qid = decision.get("response_event_ref"), decision.get("question_id")
+        if decision.get('evidence_kind') == 'document':
+            from source_updates import document_decision_errors
+            errors.extend(document_decision_errors(context, decision))
+            recorded = qid in questions or any(
+                qid in change['question_refs'] and did in change['decision_refs']
+                for update in context.get('source_updates', []) for change in update['changes'])
+            current = not qid or ((qid in asked or recorded) and
+                                 decision.get('question_event_ref') == asked.get(qid))
+        else:
+            occurrence = answered.get(response_id, {}).get(qid)
+            if not occurrence:
+                errors.append(did + ": decision must link its displayed question and actual answer event")
+            current = occurrence == asked.get(qid) and response_id == latest_answers.get(qid)
         if decision["status"] != "superseded":
-            if current and decision["status"] == "confirmed":
+            if current and qid and decision["status"] == "confirmed":
                 resolved_questions.add(qid)
-            if ready and not current:
+            if (ready or (reviewed and decision['status'] == 'confirmed')) and not current:
                 errors.append(did + ": current decision must use the latest answer to the latest question occurrence")
         if decision["status"] == "superseded":
             replacement = decisions.get(decision.get("superseded_by"))
@@ -141,14 +155,15 @@ def dialogue_errors(context, *, ready=False):
             errors.append(did + ": unconfirmed business assumption must be resolved or explicitly excluded")
 
     for rule in rules.values():
-        if ready and rule["status"] == "assumed":
+        if ready and rule["status"] in {"assumed", "pending"}:
             errors.append(rule["id"] + ": unconfirmed business oracle")
         for ref in rule["decision_refs"]:
             if ref in decisions and decisions[ref]["status"] == "superseded":
                 errors.append(rule["id"] + ": rule still uses superseded decision " + ref)
-    if ready:
+    if ready or reviewed:
         for qid in set(asked) - resolved_questions - set(questions):
             errors.append(qid + ": displayed question has no decision or explicit pending disposition")
+    if ready:
         assigned = {ref for u in units.values() for ref in u["rule_refs"]}
         errors.extend(r["id"] + ": business rule has no requirement unit" for r in rules.values() if r["status"] != "excluded" and r["id"] not in assigned)
         if not units or not any(r["status"] == "confirmed" for r in rules.values()):
@@ -162,21 +177,39 @@ def dialogue_errors(context, *, ready=False):
         if ready and q["material"]:
             errors.append(q["id"] + ": unresolved material question: " + q["description"])
     reviews = context["branch_reviews"]
-    answers = {e["id"] for e in events.values() if e["kind"] == "answer"}
-    if ready and ({r["answer_event_ref"] for r in reviews} != answers or len(reviews) != len(answers)):
+    answer_reviews = [r for r in reviews if 'answer_event_ref' in r]
+    answers = {e["id"] for e in events.values() if e["kind"] == "answer" or (e['kind'] == 'confirmation' and e.get('answer_to'))}
+    if (ready or reviewed) and ({r["answer_event_ref"] for r in answer_reviews} != answers or len(answer_reviews) != len(answers)):
         errors.append("review newly unlocked branches after every actual answer")
-    for review in reviews:
+    for review in answer_reviews:
         if review["answer_event_ref"] not in answers or not set(review["unit_refs"]) <= set(units):
             errors.append("branch review references unknown answer or units")
-        affected = {d["unit_id"] for d in decisions.values() if d["response_event_ref"] == review["answer_event_ref"]}
+        affected = {d["unit_id"] for d in decisions.values() if d.get("response_event_ref") == review["answer_event_ref"]}
         if not affected <= set(review["unit_refs"]):
             errors.append("branch review omits units whose decisions changed in this answer")
+    updates = {u['id']: u for u in context.get('source_updates', [])}
+    source_reviews = [r for r in reviews if 'source_update_ref' in r]
+    if (ready or reviewed) and ({r['source_update_ref'] for r in source_reviews} != set(updates) or len(source_reviews) != len(updates)):
+        errors.append('review newly unlocked branches after every source update')
+    for review in source_reviews:
+        update = updates.get(review['source_update_ref'])
+        if not update or not set(review['unit_refs']) <= set(units):
+            errors.append('source branch review references unknown update or units')
+            continue
+        from source_updates import affected_artifacts
+        changed_rules = {r for change in update['changes'] for r in change['rule_refs']}
+        if not set(affected_artifacts(context, changed_rules)['unit_refs']) <= set(review['unit_refs']):
+            errors.append('source branch review omits affected dependency units')
+    from source_updates import update_errors
+    errors.extend(update_errors(context))
     return errors
 
 
-def readiness_errors(context, *, confirmed=False):
+def readiness_errors(context, *, confirmed=False, final=True):
     from design_context import requirement_digest
-    errors = dialogue_errors(context, ready=True)
+    errors = dialogue_errors(context, ready=final, reviewed=True)
+    if not final:
+        errors.extend(q['id'] + ': blocking question prevents draft design' for q in context['open_questions'] if q.get('blocking'))
     for source in context["sources"]:
         if source["scope"] == "included" and source["inventory_status"] != "complete":
             errors.append(source["id"] + ": included source inventory is incomplete")
@@ -184,33 +217,20 @@ def readiness_errors(context, *, confirmed=False):
     for segment in context["segments"]:
         if segment["source_id"] in included and segment["read_status"] not in {"read", "excluded"}:
             errors.append(segment["id"] + ": relevant source content has not been read")
-    errors.extend(extraction_errors(context, final=True))
+    errors.extend(extraction_errors(context, final=final, complete=True))
     snapshot = requirement_digest(context)
     review = context["requirement_review"]
     if review["status"] != "ready" or review.get("snapshot_sha256") != snapshot:
         errors.append("requirement completeness review is missing or stale")
     audits = review.get("checks", [])
     if len(audits) != len(AUDITS) or {a["kind"] for a in audits} != AUDITS:
-        errors.append("perform business-coverage, branch-expansion and decision-provenance audits before the final summary")
+        errors.append("perform business-coverage, branch-expansion and decision-provenance audits before the overall summary")
     for audit in audits:
         if set(audit["unit_refs"]) != {u["id"] for u in context["requirement_units"]}:
             errors.append(audit["kind"] + ": audit must account for every current unit, including exclusions")
     if confirmed:
-        confirmation = context["requirement_confirmation"]
-        events = {e["id"]: e for e in context["dialogue_events"]}
-        summary = events.get(confirmation.get("summary_event_ref"), {})
-        response = events.get(confirmation.get("response_event_ref"), {})
-        if confirmation["status"] != "confirmed" or not all(confirmation.get(k) for k in ("confirmed_at", "response_ref", "response_text")):
-            errors.append("requirements need explicit user confirmation with the actual response before test points")
-        if confirmation.get("snapshot_sha256") != snapshot:
-            errors.append("confirmed requirement facts changed; discuss and reconfirm requirements")
-        if summary.get("kind") != "summary" or summary.get("snapshot_sha256") != snapshot:
-            errors.append("confirmation must bind the actual displayed final summary to current requirements")
-        order = {e["id"]: i for i, e in enumerate(context["dialogue_events"])}
-        if any(order[e["id"]] > order.get(summary.get("id"), -1) for e in events.values() if e["kind"] in {"question", "answer"}):
-            errors.append("final summary predates later dialogue; present the revised summary and reconfirm")
-        if response.get("kind") != "confirmation" or response.get("in_reply_to") != summary.get("id") or response.get("text") != confirmation.get("response_text") or response.get("message_ref") != confirmation.get("response_ref"):
-            errors.append("confirmation must preserve the actual reply to that final summary")
+        from requirement_confirmation import confirmation_errors
+        errors.extend(confirmation_errors(context, final=final))
     return errors
 
 
@@ -219,10 +239,11 @@ def main():
     from pathlib import Path
     parser = argparse.ArgumentParser(description="Validate requirement completeness before the summary; never confirms on behalf of the user.")
     parser.add_argument("context", type=Path)
-    parser.add_argument("--confirmed", action="store_true", help="Also require the actual final summary and user confirmation.")
+    parser.add_argument("--confirmed", action="store_true", help="Also require actual overall confirmation and any scoped amendments.")
+    parser.add_argument("--draft", action="store_true", help="Check overall understanding while localized business questions remain open.")
     args = parser.parse_args()
     context = validate_design_context_file(args.context, final=False)
-    errors = readiness_errors(context, confirmed=args.confirmed)
+    errors = readiness_errors(context, confirmed=args.confirmed, final=not args.draft)
     if errors:
         raise ValidationFailure(errors)
     print("OK: requirement readiness" + (" and recorded confirmation" if args.confirmed else "; present the summary and obtain user confirmation"))

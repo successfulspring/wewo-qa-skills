@@ -1,4 +1,6 @@
-# Execution preflight and readiness
+# Execution preflight
+
+Only final Designer baselines are executable. Do not pass --draft to bypass preflight or infer an expected result from live behavior. Return pending business questions to Designer for a grouped resolution; runtime access/data/tooling gaps remain Executor work. and readiness
 
 ## Inputs and discovery
 

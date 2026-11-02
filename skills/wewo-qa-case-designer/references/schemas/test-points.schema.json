@@ -16,7 +16,11 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "1.4"
+      "enum": [
+        "1.4",
+        "1.5",
+        "1.6"
+      ]
     },
     "generated_at": {
       "type": "string",
@@ -132,6 +136,13 @@
         }
       },
       "required": []
+    },
+    "stage": {
+      "enum": [
+        "draft",
+        "final"
+      ],
+      "default": "final"
     }
   },
   "$defs": {
@@ -278,6 +289,19 @@
         "sha256": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
+        },
+        "role": {
+          "enum": [
+            "product",
+            "development",
+            "mixed",
+            "reference",
+            "unknown"
+          ]
+        },
+        "applies_to": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -287,7 +311,6 @@
       "required": [
         "id",
         "unit_id",
-        "question_id",
         "topic",
         "resolution",
         "status"
@@ -329,8 +352,85 @@
         },
         "rationale": {
           "type": "string"
+        },
+        "evidence_kind": {
+          "enum": [
+            "dialogue",
+            "document"
+          ]
+        },
+        "requirement_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "approval_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "approved_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "applicability": {
+          "type": "string",
+          "minLength": 1
+        },
+        "question_event_ref": {
+          "type": "string",
+          "minLength": 1
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "evidence_kind": {
+                "const": "document"
+              }
+            },
+            "required": [
+              "evidence_kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "requirement_refs",
+              "approval_refs",
+              "approved_by",
+              "applicability"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "response_event_ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "selected_options"
+                  ]
+                }
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "question_id"
+            ]
+          }
+        }
+      ]
     },
     "requirement_unit": {
       "type": "object",
@@ -364,7 +464,10 @@
           "enum": [
             "confirmed",
             "assumed",
-            "excluded"
+            "excluded",
+            "unreviewed",
+            "discussing",
+            "waiting"
           ]
         },
         "understanding": {
@@ -466,7 +569,8 @@
         "status": {
           "enum": [
             "confirmed",
-            "assumed"
+            "assumed",
+            "pending"
           ]
         },
         "requirement_unit_refs": {
@@ -529,8 +633,7 @@
           },
           "required": [
             "condition",
-            "action",
-            "expected"
+            "action"
           ]
         },
         "coverage_item_refs": {
@@ -545,6 +648,15 @@
         "outcome_ref": {
           "type": "string",
           "pattern": "^OUT-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+        },
+        "question_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
         }
       },
       "allOf": [
@@ -588,6 +700,52 @@
               "verification",
               "outcome_ref"
             ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pending"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "question_refs"
+            ]
+          },
+          "else": {
+            "required": [],
+            "not": {
+              "required": [
+                "question_refs"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pending"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "else": {
+            "properties": {
+              "verification": {
+                "required": [
+                  "expected"
+                ]
+              }
+            }
           }
         }
       ]

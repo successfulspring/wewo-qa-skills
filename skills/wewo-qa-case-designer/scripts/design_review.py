@@ -55,7 +55,4 @@ def case_review_errors(manifest, *, final):
         case = cases.get(review["case_id"])
         if case and review["snapshot_sha256"] != case_review_digest(manifest, case):
             errors.append(case["id"] + ": case walkthrough/oracle review is stale")
-    baseline = manifest["test_points_baseline"]
-    if not baseline.get("response_ref") or not baseline.get("response_text", "").strip():
-        errors.append("test-point baseline needs the actual tester confirmation response and reference")
     return errors

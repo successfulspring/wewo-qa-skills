@@ -60,6 +60,43 @@ def main():
         book.close()
     finally:
         fixture.doCleanups()
+    # Pending business expectations are reviewable in all four native draft
+    # outputs, but cannot be promoted to an execution profile by a draft flag.
+    from test_designer_drafts import draft_set
+    with tempfile.TemporaryDirectory(prefix="wewo-qa-draft-smoke-") as folder:
+        root = Path(folder)
+        state = root / '.qa-state'
+        state.mkdir()
+        _, _, _, path = draft_set(state)
+        run('requirement-digest', state / 'design-context.json', '--snapshot')
+        run('validate-requirement-readiness', state / 'design-context.json', '--draft', '--confirmed')
+        run('render-test-points-xmind', state / 'test-points.json', '--draft')
+        run('render-case-workbook', path, '--draft')
+        run('validate-deliverables', root, '--draft')
+        run('validate-deliverables', root, fail=True)
+        run('prepare-execution-profile', path, '--suite', 'smoke', '--target', 'web-chrome',
+            '--output', state / 'runs/blocked/execution-profile.json', fail=True)
+        for suite in ('smoke', 'regression', 'full'):
+            book = load_workbook(root / f'test-cases.{suite}.xlsx')
+            try:
+                if '待确认' not in str(list(book['必检断言'].values)):
+                    raise RuntimeError('draft assertion status missing from ' + suite)
+            finally:
+                book.close()
+    # A later owner-approved document resolves the draft through native gates,
+    # preserving the initial summary/reply and showing actual incremental changes.
+    from test_source_updates import late_document_set
+    with tempfile.TemporaryDirectory(prefix="wewo-qa-source-update-smoke-") as folder:
+        state = Path(folder) / '.qa-state'
+        state.mkdir()
+        _, _, _, path, _ = late_document_set(state, chat_question=False)
+        run('validate-requirement-readiness', state / 'design-context.json', '--confirmed')
+        run('render-test-points-xmind', state / 'test-points.json')
+        run('render-case-workbook', path)
+        run('validate-deliverables', state.parent)
+        report = json.loads(run('summarize-source-update', state / 'design-context.json', '--update', 'UPD-001'))
+        if report['case_changes']['modified'] != ['QA-LOGIN-001'] or report['open_questions']:
+            raise RuntimeError('native source-update summary did not preserve the actual delta')
     with tempfile.TemporaryDirectory(prefix="wewo-qa-smoke-") as folder:
         directory = Path(folder)
         manifest, path, profile, profile_path, results, results_path = execution_set(directory)
@@ -228,14 +265,14 @@ def main():
         run("render-test-points-xmind", points_path, "--draft")
         run("render-test-points-xmind", points_path, fail=True)
         # A review draft must not bypass unfinished requirement discovery.
-        context["open_questions"] = [{"id":"Q-001", "unit_id":"RU-001", "impact":"Changes scope", "description":"Synthetic unanswered scope", "material":True}]
+        context["open_questions"] = [{"id":"Q-001", "unit_id":"RU-001", "impact":"Changes scope", "description":"Synthetic unanswered scope", "material":True, "blocking":True}]
         write_json(context_path, context)
         points["design_context_baseline"]["sha256"] = sha256_file(context_path)
         seal_synthetic_points(points)
         write_json(points_path, points)
         run("validate-requirement-readiness", context_path, fail=True)
         run("render-test-points-xmind", points_path, "--draft", fail=True)
-    print("OK: bundled native execution/summary, coverage-plan freezing, extraction, XMind, Excel roundtrip, profile, assertion rejection and failure report smoke")
+    print("OK: bundled source updates/document approval, draft delivery/execution rejection, native execution/summary, coverage-plan freezing, extraction, XMind, Excel roundtrip, profile, assertion rejection and failure report smoke")
     return 0
 
 

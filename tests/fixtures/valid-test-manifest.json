@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.6",
+  "schema_version": "1.7",
   "generated_at": "2026-09-04T10:00:00+08:00",
   "project": {
     "name": "示例会员系统",
@@ -60,10 +60,7 @@
   ],
   "test_points_baseline": {
     "path": "test-points.json",
-    "sha256": "02bc115d9fd51bf63e4324ac9147a784e801b794e40c8552041f060491a076fe",
-    "confirmed_at": "2026-09-04T09:58:00+08:00",
-    "response_ref": "synthetic://xmind/confirm",
-    "response_text": "[SYNTHETIC] Confirm the limited observation tree for maintenance testing."
+    "sha256": "c8670fedee5c957049885ea9ac9fd8b0f8d607322238110207a77cb004d2f710"
   },
   "runtime_requirements": [
     {
@@ -515,21 +512,21 @@
     "case_checks": [
       {
         "case_id": "QA-LOGIN-001",
-        "snapshot_sha256": "396cfce75188448d12fdfe2ad732436932f0c9e5b4681080e1aa66bb9e7b55d7",
+        "snapshot_sha256": "e4faa79272765e83d1a02cc02e01bd183a85f40abcc34ed7875bef0f53c17bae",
         "walkthrough": "Synthetic fixture author checks the declared preparation and steps for QA-LOGIN-001; no product execution or user approval.",
         "oracle_basis": "Synthetic benchmark observations: TP-LOGIN-SUCCESS, TP-LOGIN-NICKNAME",
         "suite_reason": "Synthetic suite intersection for validator tests; not a real risk assessment: smoke, regression, full"
       },
       {
         "case_id": "QA-LOGIN-002",
-        "snapshot_sha256": "63ec782832c9c0dea425a21426a2280c2213d3a4f46e4d24b24a3f3e64d53224",
+        "snapshot_sha256": "45f4fce564154d456549128f1125cf07c2cf8dd92b1f04d3749e2b06a8fbf85e",
         "walkthrough": "Synthetic fixture author checks the declared preparation and steps for QA-LOGIN-002; no product execution or user approval.",
         "oracle_basis": "Synthetic benchmark observations: TP-LOGIN-LOCKOUT, TP-LOGIN-LOCKED-RETRY",
         "suite_reason": "Synthetic suite intersection for validator tests; not a real risk assessment: regression, full"
       },
       {
         "case_id": "QA-LOGIN-003",
-        "snapshot_sha256": "d500ab85ba254ca65de85067c4007c7db551cd2239abd143950d7f308a7e9915",
+        "snapshot_sha256": "59aed524f367bb62ff52c4a2479db44394db394f72e55b56dfcb098a2208d25b",
         "walkthrough": "Synthetic fixture author checks the declared preparation and steps for QA-LOGIN-003; no product execution or user approval.",
         "oracle_basis": "Synthetic benchmark observations: TP-LOGIN-PASSWORD-REQUIRED, TP-LOGIN-STAY, TP-LOGIN-NOSESSION",
         "suite_reason": "Synthetic suite intersection for validator tests; not a real risk assessment: full"
