@@ -32,6 +32,34 @@ class AuthoringTests(unittest.TestCase):
             locate_excerpt(item, {'SEG-001': '名字🙂名字🙂'})
         self.assertEqual(locate_excerpt(dict(item, occurrence=1), {'SEG-001': '名字🙂名字🙂'})['start'], 3)
 
+    def test_cli_json_preserves_unicode_in_legacy_encoded_pipes(self):
+        import os
+        import subprocess
+        self.state = self.state / '中文😀'; self.state.mkdir()
+        self.context, self.path = initial_context(self.state)
+        title = '成员资料独立审阅 😀'
+        unit = self.context['requirement_units'][0]['id']
+        request = self.state / 'request.json'
+        env = {**os.environ, 'PYTHONIOENCODING': 'cp1252', 'PYTHONUTF8': '0'}
+        def run(*args):
+            result = subprocess.run([sys.executable, '-B', str(ROOT/'tooling/runtime/wewo_qa_cli.py'),
+                                     *map(str, args)], capture_output=True, env=env)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return json.loads(result.stdout.decode('utf-8'))
+        write_json(request, self.packet(upsert={'requirement_units':[{'id':unit,'title':title}]}))
+        run('apply-design', self.path, '--input', request)
+        result = run('inspect-design', self.path, '--unit', unit)
+        self.assertEqual(result['units'][0]['title'], title)
+        write_json(request, {'base_sha256':sha256_file(self.path), 'event':{
+            'id':'EV-SUM-UNICODE', 'kind':'summary', 'text':'[SYNTHETIC] 已展示总结 😀',
+            'message_ref':'synthetic://unicode-summary'}})
+        run('record-design-dialogue', self.path, '--input', request)
+        self.assertEqual(load_json(self.path)['dialogue_events'][-1]['text'], '[SYNTHETIC] 已展示总结 😀')
+        error = subprocess.run([sys.executable, '-B', str(ROOT/'tooling/runtime/wewo_qa_cli.py'),
+                                '不存在的命令😀'], capture_output=True, env=env)
+        self.assertEqual(error.returncode, 2)
+        self.assertIn('不存在的命令😀', error.stderr.decode('utf-8'))
+
     def test_ids_repeat_safely_and_stale_packet_cannot_overwrite(self):
         unit = self.context['requirement_units'][0]['id']
         p = self.packet(upsert={'open_questions': [{'id': '@new', 'unit_id': unit,

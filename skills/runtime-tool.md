@@ -13,4 +13,6 @@ Per-host distributions contain only the selected host's executable. Artifact ope
 
 Run `<qa-tool> --version` and `--help`. Current contracts require `wewo-qa 0.3.3` and the commands `apply-design`, `inspect-design`, `record-design-dialogue`, `build-deliverables`, `validate-requirement-readiness`, `summarize-source-update`, `render-clarification-workbook`, `import-clarification-workbook`, `validate-clarification-workbook`, `render-open-questions`, `design-review-digest`, `requirement-digest`, `freeze-coverage-plan`, `validate-deliverables`, `run-native-tests` and `summarize-execution`. A missing, unsupported or stale binary requires updating/rebuilding the plugin. A matching version alone does not prove command compatibility. Never fall back to maintainer source modules or bypass a failed gate.
 
+Decode command output and diagnostics as UTF-8, including redirected output on Windows; the native entry point normalizes legacy console encodings without replacing business characters.
+
 Use `<qa-tool>` for the commands in the relevant Skill's artifact/execution references. A non-zero exit is a failed operation: preserve drafts/edits/evidence, resolve the cause, and rerun as needed. Generation helpers and internal state belong under `.qa-state`, not among tester deliverables.

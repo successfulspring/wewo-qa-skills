@@ -79,6 +79,11 @@ def _usage() -> str:
 
 
 def main() -> int:
+    # Native commands use UTF-8 even when redirected through a legacy Windows
+    # code page. Preserve both business text and diagnostics without replacement.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(encoding='utf-8')
     if len(sys.argv) == 2 and sys.argv[1] == "--version":
         print(f"wewo-qa {VERSION}")
         return 0

@@ -25,6 +25,19 @@ class PipelineTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.state = self.root / '.qa-state'; self.state.mkdir()
 
+    def test_cli_delivery_report_preserves_unicode_paths_with_legacy_encoding(self):
+        import os
+        import subprocess
+        root = self.root / '需求😀'; state = root / '.qa-state'; state.mkdir(parents=True)
+        initial_context(state)
+        env = {**os.environ, 'PYTHONIOENCODING':'cp1252', 'PYTHONUTF8':'0'}
+        result = subprocess.run([sys.executable, '-B', str(ROOT/'tooling/runtime/wewo_qa_cli.py'),
+            'build-deliverables', str(root), '--stage', 'clarification'], capture_output=True, env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout.decode('utf-8'))
+        self.assertEqual(report['outputs'], [str(root/'requirement-clarifications.xlsx')])
+        self.assertTrue(Path(report['outputs'][0]).is_file())
+
     def test_first_clarification_then_five_files_with_same_question_inventory(self):
         initial_context(self.state)
         initial = build_delivery(self.root, 'clarification')
