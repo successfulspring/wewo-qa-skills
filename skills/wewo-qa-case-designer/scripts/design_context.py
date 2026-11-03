@@ -10,6 +10,7 @@ from artifact_tools import (
 )
 from design_methods import derivation_errors, review_errors
 from requirement_coverage import extraction_errors, plan_errors, source_audit_errors
+from validation_session import checked, operation
 
 
 DIMENSIONS = {"positive", "negative", "boundary", "state", "role", "cross-object"}
@@ -22,6 +23,7 @@ def requirement_digest(context):
     return digest(business_snapshot(context))
 
 
+@checked
 def validate_design_context_data(context: Any, *, final: bool = True) -> None:
     errors = schema_errors(context, DESIGNER_SCHEMA_ROOT / "design-context.schema.json")
     if errors:
@@ -142,6 +144,7 @@ def validate_design_context_data(context: Any, *, final: bool = True) -> None:
         raise ValidationFailure(errors)
 
 
+@operation
 def validate_design_context_file(path: Path, *, final: bool = True) -> dict[str, Any]:
     context = load_json(path)
     validate_design_context_data(context, final=final)

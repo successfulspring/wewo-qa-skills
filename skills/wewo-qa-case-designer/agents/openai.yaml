@@ -1,7 +1,7 @@
 interface:
   display_name: "Wewo QA Case Designer"
   short_description: "Design cases and refine them from later product or developer docs"
-  default_prompt: "Use $wewo-qa-case-designer to read my product and development materials, confirm initial business understanding, and deliver or update XMind and three Excel case drafts with grouped questions."
+  default_prompt: "Use $wewo-qa-case-designer to read my product and development materials, deliver business understanding and a separate clarification XLSX before case design, then generate or update XMind and three case workbooks after overall confirmation while maintaining that same clarification file."
 
 policy:
   allow_implicit_invocation: true

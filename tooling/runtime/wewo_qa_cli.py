@@ -19,6 +19,8 @@ import design_context
 import requirement_coverage
 import requirement_readiness
 import source_updates
+import question_delivery
+import question_workbook
 import design_review
 import extract_source
 import judge_execution_results
@@ -28,16 +30,26 @@ import deliverables
 import render_execution_report
 import render_test_points_xmind
 import design_validation
+import design_authoring
+import design_pipeline
 import execution_validation
 from runtime_version import VERSION
 
 
 COMMANDS = {
+    "apply-design": design_authoring.main,
+    "record-design-dialogue": design_authoring.dialogue_main,
+    "inspect-design": design_authoring.inspect_main,
+    "build-deliverables": design_pipeline.main,
     "extract-source": extract_source.main,
     "validate-design-context": design_context.main,
     "requirement-digest": design_context.digest_main,
     "validate-requirement-readiness": requirement_readiness.main,
     "summarize-source-update": source_updates.main,
+    "render-open-questions": question_delivery.main,
+    "render-clarification-workbook": question_workbook.render_main,
+    "import-clarification-workbook": question_workbook.import_main,
+    "validate-clarification-workbook": question_workbook.validate_main,
     "design-review-digest": design_review.main,
     "freeze-coverage-plan": requirement_coverage.main,
     "validate-test-points": design_validation.points_main,

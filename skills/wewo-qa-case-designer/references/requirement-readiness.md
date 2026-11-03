@@ -2,6 +2,10 @@
 
 This requirement-only gate needs no test tree, plan or cases. Draft readiness means the whole scoped understanding was read and reviewed with local unknowns disclosed. Final readiness also requires resolved material business expectations.
 
+Use `record-design-dialogue` for mechanical event linkage and baseline capture, following [structured authoring](efficient-authoring.md). Supply the exact actual display/reply, its real message reference and the authored interpretation. The tool cannot decide that a reply approves a rule, cannot close questions by itself, and must preserve the initial confirmation for scoped changes.
+
+The pre-confirmation `--clarification` route checks complete reading and audits while allowing overall blockers to be presented for clarification. It cannot be combined with `--confirmed` or replace the later design gate. See [independent workbook](clarification-workbook.md).
+
 ## Three audits before the summary
 
 1. **Business coverage**: compare original text, tables, notes and diagrams with the full journey: scope, actors, ownership, prerequisites, actions, limits, states, data changes, exceptions, downstream effects and observable results. Keep independently defined lifecycles separate. Record meaningful gaps instead of guessing them.
@@ -15,10 +19,10 @@ Perform these before showing the overall explanation. Local unresolved findings 
 Context schema 1.6 retains the existing records and accepts legacy dialogue evidence:
 
 - requirement_units hold current id/title/source_refs/understanding/confirmed_facts, depends_on and rule_refs. Status is unreviewed, discussing, waiting, confirmed or excluded. Confirmed means known material facts, not a separate user approval. Excluded units need an exclusion_reason and no active rules.
-- open_questions carry id, unit_id, description, impact, material and optional parent_decision_ref, source_refs, options and blocking. Use blocking only when an agreed overall baseline is impossible. Local material questions remain blocking=false or omitted. Remove resolved items only after recording their answer and updating affected expectations.
+- open_questions carry id, unit_id, description, impact, material and optional parent_decision_ref, source_refs, options and blocking. Use blocking only when an agreed overall baseline is impossible. Local material questions remain blocking=false or omitted. Move resolved items into optional closed_questions only after recording their answer and updating affected expectations. Closed entries preserve the question fields and add disposition=resolved|excluded and resolution_refs to current confirmed decisions for that same question; they cannot also remain open.
 - dialogue_events preserve actual chronological id/kind/text/message_ref. A saved draft is not a displayed exchange.
   - question has question_ids. A repeated ID uses revisits to identify its latest previous question event.
-  - answer uses in_reply_to for one earlier question event or an array of batches. question_ids identifies only addressed questions, required for multi-question batches. Preserve a real reply once.
+  - answer uses in_reply_to for one earlier question event or an array of batches. question_ids identifies only addressed questions, required for multi-question batches. Preserve a real reply once. Returned clarification workbooks may add responses=[{question_id,text}] for the exact per-question cell text in that single answer event; these must match addressed question_ids and do not automatically confirm decisions.
   - summary binds its displayed business understanding to snapshot_sha256.
   - confirmation has one summary ID in in_reply_to. When the same reply also answers questions, answer_to lists earlier question event IDs and question_ids lists addressed IDs. Decisions may cite that combined reply. Do not split it into fabricated separate messages.
 - decisions preserve parsed resolutions and their evidence_kind. Dialogue decisions cite the latest real answer to the latest question occurrence through response_event_ref. Document decisions cite requirement_refs, approval_refs, approved_by and applicability as specified in source updates; no synthetic reply is needed. Superseded decisions retain superseded_by but cannot support active rules/extraction/points. Assumed decisions never become confirmed by a bulk status change.

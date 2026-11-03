@@ -236,6 +236,8 @@ class SourceUpdateTests(unittest.TestCase):
                     candidate, baseline, _ = read_case_workbook(output)
                     self.assertEqual(candidate, baseline)
                 (state.parent / 'test-points.xmind').write_bytes(render_xmind_bytes(p))
+                from question_workbook import render_workbook
+                render_workbook(state / 'design-context.json')
                 validate_delivery(state.parent)
                 self.assertEqual(c['requirement_confirmation']['snapshot_sha256'], original['snapshot_sha256'])
                 self.assertEqual(c['requirement_confirmation']['response_text'], original['response_text'])
@@ -363,6 +365,43 @@ class SourceUpdateTests(unittest.TestCase):
         add_handoff(self.c)
         self.c['source_updates'] = [update_record(self.c, kind='retirement', disposition='applied')]
         self.assertTrue(any('authoritative decision' in e for e in update_errors(self.c)))
+
+    def retired_rule(self):
+        add_handoff(self.c, approved=True)
+        decision = document_decision(self.c)
+        self.c['decisions'].append(decision)
+        rule, unit = self.c['rules'][0], self.c['requirement_units'][0]
+        before = copy.deepcopy(unit)
+        rule.update(status='excluded', rationale='Synthetic approved retirement.',
+                    decision_refs=[decision['id']])
+        unit['rule_refs'].remove(rule['id'])
+        self.c['source_updates'] = [update_record(self.c, kind='retirement', disposition='applied')]
+        self.c['source_updates'][0]['changes'][0]['entity_refs'].append('SEG-APPROVAL')
+        self.c['source_updates'][0]['changes'][0]['decision_refs'] = [decision['id']]
+        self.evidence_amendments()
+        current = business_snapshot(self.c)
+        self.c['requirement_confirmation']['amendments'] += [
+            {'ref':rule['id'], 'sha256':current[rule['id']], 'decision_refs':[decision['id']]},
+            {'ref':unit['id'], 'sha256':current[unit['id']], 'decision_refs':[decision['id']], 'before':before}]
+        return rule, unit, decision
+
+    def test_retired_rule_uses_confirmed_historical_owner_not_active_membership(self):
+        rule, unit, _ = self.retired_rule()
+        self.assertNotIn(rule['id'], unit['rule_refs'])
+        self.assertEqual(confirmation_errors(self.c), [])
+
+    def test_retired_rule_rejects_fabricated_historical_owner(self):
+        self.retired_rule()
+        self.c['requirement_confirmation']['amendments'][-1]['before']['title'] = 'Fabricated owner'
+        self.assertTrue(any('does not support this rule' in e for e in confirmation_errors(self.c)))
+
+    def test_retired_rule_still_requires_matching_actual_decision(self):
+        _, _, decision = self.retired_rule()
+        decision['unit_id'] = 'RU-002'
+        self.assertTrue(any('does not support this rule' in e for e in confirmation_errors(self.c)))
+        decision['unit_id'] = 'RU-001'
+        decision['status'] = 'assumed'
+        self.assertTrue(any('current confirmed document decision' in e for e in confirmation_errors(self.c)))
 
     def test_new_source_branch_review_cannot_omit_dependencies(self):
         from requirement_readiness import dialogue_errors

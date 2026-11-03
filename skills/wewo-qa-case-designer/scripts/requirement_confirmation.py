@@ -80,6 +80,15 @@ def confirmation_errors(context, *, final=True):
                 errors.append(ref + ': amendment decision belongs to another requirement unit')
             if ref in rules:
                 owners = {u['id'] for u in units.values() if ref in u['rule_refs']}
+                # Retired rules cannot remain in an active unit's rule_refs. Keep
+                # ownership attributable to the actual confirmed unit instead.
+                if rules[ref]['status'] == 'excluded':
+                    for uid in units:
+                        before = amendments.get(uid, {}).get('before')
+                        if (isinstance(before, dict) and before.get('id') == uid
+                                and ref in before.get('rule_refs', [])
+                                and baseline.get(uid) == digest(entity_projection(uid, before))):
+                            owners.add(uid)
                 if decision.get('unit_id') not in owners or did not in rules[ref]['decision_refs']:
                     errors.append(ref + ': amendment decision does not support this rule')
     return errors

@@ -88,7 +88,6 @@ class ArtifactLanguageTests(unittest.TestCase):
         book = load_workbook(path)
         self.assertIn("测试用例", book.sheetnames)
         # Recreate the actual older layout, before status/question columns existed.
-        del book['待确认问题']
         for sheet in ('测试用例', '必检断言'):
             book[sheet].delete_cols(book[sheet].max_column - 1, 2)
         metadata = book["_baseline"]

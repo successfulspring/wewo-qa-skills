@@ -2,6 +2,7 @@
 
 ```text
 qa-artifacts/<feature>/
+|-- requirement-clarifications.xlsx # first delivered before case design
 |-- test-points.xmind
 |-- test-cases.smoke.xlsx
 |-- test-cases.regression.xlsx
@@ -17,11 +18,11 @@ qa-artifacts/<feature>/
     `-- runs/<run-id>/           # frozen profiles/results/raw evidence
 ```
 
-The tester receives XMind + three Excel files, then the execution report. Keep technical handoff state under `.qa-state/` and retain it when transferring the reviewed artifact directory to Executor. Executor reuses an authorized automation workspace or creates persistent `qa-automation/<artifact-id>/` beside `qa-artifacts/`, following [independent acceptance automation](../../wewo-qa-case-executor/references/native-automation.md#workspace-and-implementation). Product source is not required.
+The tester first receives the business explanation and standalone requirement-clarifications.xlsx; after overall confirmation, XMind + three case Excel files accompany an updated copy of that same clarification workbook. The execution report follows execution. Keep technical handoff state under `.qa-state/` and retain it when transferring the reviewed artifact directory to Executor. Executor reuses an authorized automation workspace or creates persistent `qa-automation/<artifact-id>/` beside `qa-artifacts/`, following [independent acceptance automation](../../wewo-qa-case-executor/references/native-automation.md#workspace-and-implementation). Product source is not required.
 
-No generation helpers, automation scripts, JSON baselines, caches or draft duplicates belong at the delivery root. `validate-deliverables` enforces the four design files and their agreement; it does not remove files. Preserve user inputs and older evidence during migration.
+No generation helpers, automation scripts, JSON baselines, caches or draft duplicates belong at the delivery root. `validate-deliverables` enforces the four case-design files plus the independent clarification workbook and their agreement; it does not remove files. Preserve user inputs and older evidence during migration. Before case design, use `validate-clarification-workbook` for the initial standalone delivery.
 
-Current contracts are context 1.6, points 1.6, manifest 1.8 and Excel 1.5. Existing context/points 1.5 and manifest 1.7 remain readable. Missing source roles stay unknown and existing decisions retain dialogue semantics. The importer also accepts existing 1.3 Chinese and 1.4 bilingual workbooks. Earlier baselines are review input: reuse verifiable sources and actual dialogue, reconcile extraction and business confirmation, then regenerate. The old requirement digest included conversation history; do not simply relabel versions or rewrite approval hashes. Store actual overall confirmation separately from scoped amendments, internal reviews and artifact stage. No helper can invent a user response.
+Current contracts are context 1.6, points 1.6, manifest 1.8 and case Excel 1.6; the independent clarification workbook uses format 1.0. Existing context/points 1.5 and manifest 1.7 remain readable. Missing source roles stay unknown and existing decisions retain dialogue semantics. The importer also accepts existing 1.3 Chinese, 1.4 bilingual and 1.5 embedded-question workbooks. Preserve their edits before regenerating the separated 1.6 case layout. Earlier baselines are review input: reuse verifiable sources and actual dialogue, reconcile extraction and business confirmation, then regenerate. The old requirement digest included conversation history; do not simply relabel versions or rewrite approval hashes. Store actual overall confirmation separately from scoped amendments, internal reviews and artifact stage. No helper can invent a user response.
 
 ## Delivery language
 
@@ -35,7 +36,7 @@ Record `project.output_language` as `zh-CN` or `en` in `design-context.json` and
 
 Chinese material with Chinese clarification normally produces Chinese artifacts. English clarification normally produces English artifacts even when the original material is Chinese. Write summaries, titles, conditions, steps, explanations and review text in the selected language. Preserve exact original source/dialogue evidence, proper names, interface fields, commands, IDs, literal inputs and expected values whose spelling is part of the test oracle; explain them in the selected language rather than translating their values. The English Skill instructions do not make English the default delivery language.
 
-The bundled renderer localizes worksheet names, headers, fixed options, help text, validation prompts, and XMind sheet titles, note labels and draft notices. It does not translate authored business content; the agent must author and review that content in the selected language. Filenames, stable IDs, schema keys and machine enum values remain unchanged. Import reads the workbook's recorded locale and preserves typed values and original evidence. A language change requires reconciling edits, updating the context/points/manifest consistently and regenerating the four deliverables through the existing review and confirmation gates; never rename columns by hand or rewrite hashes to bypass a stale baseline.
+The bundled renderer localizes worksheet names, headers, fixed options, help text, validation prompts, and XMind sheet titles, note labels and draft notices. It does not translate authored business content; the agent must author and review that content in the selected language. Filenames, stable IDs, schema keys and machine enum values remain unchanged. Import reads the workbook's recorded locale and preserves typed values and original evidence. A language change requires reconciling edits, updating the context/points/manifest consistently and regenerating the five deliverables through the existing review and confirmation gates; never rename columns by hand or rewrite hashes to bypass a stale baseline.
 
 ## Three editable suite views
 
@@ -47,25 +48,36 @@ The case, required-assertion, automation-assessment and usage-guide worksheets a
 
 ## Draft and final state
 
+Prefer the native [structured authoring and combined delivery](efficient-authoring.md) workflow. `build-deliverables <root> --stage clarification|draft|final` performs the applicable existing validation, rendering and readback steps in one snapshot; do not repeat the unchanged full chain afterward. The individual commands below remain supported for diagnosis and legacy workflows. No combined command supplies business confirmation or semantic review.
+
 Points and manifest use stage=draft/final, independent of their review status. Legacy absent stage means final. Use status=pending plus nonempty question_refs on affected rules, coverage items/outcomes, leaves and assertions. Omit unknown expected values; a pending assertion must not carry check. Known assertions keep their real expected and typed check. Pending leaf/outcome/assertion status and question references must agree.
 
-The full workbook has a visible Open Questions sheet with source references, ambiguity, impact, linked rules/points/cases and options. All suites show case/assertion status and question references. This generated view is edited through Designer's context, not maintained separately. A proposed expected value may be imported for a pending assertion without confirming it; status, question links and comparison fields cannot silently make it executable.
+The independent `requirement-clarifications.xlsx` is generated from context before case design and maintained through final delivery. It contains every detailed question, source, business impact, options, reply, status, conclusion and evidence. Initial case links say cases are not yet generated; real links are derived after design. All suite files show case/assertion pending status and question IDs; they do not contain the question inventory. A proposed expected value may be imported for a pending assertion without confirming it or making it executable.
 
-Local pending material questions and an unfrozen coverage plan are allowed for draft export after overall confirmation. Final readiness, plan freezing, final exports and Executor reject unresolved business expectations. No fourth duplicate draft workbook or extra public question file is needed.
+Follow [clarification workbook](clarification-workbook.md) for early export, response import, partial answers, closed history and migration. Its only editable business column is Reply. The shared context remains the source for generated question content/status. Rerendering must not discard human cell edits. `render-open-questions` remains an optional complete Markdown view from a validated case manifest.
+
+Local pending material questions and an unfrozen coverage plan are allowed for case draft export **after** overall confirmation. Final readiness, plan freezing, final exports and Executor reject unresolved business expectations. The initial clarification workbook is available **before** that confirmation, including unresolved overall blockers; it is not an execution baseline.
 
 ```text
 <qa-tool> validate-design-context <root>/.qa-state/design-context.json --draft
 <qa-tool> requirement-digest <root>/.qa-state/design-context.json --snapshot
-<qa-tool> validate-requirement-readiness <root>/.qa-state/design-context.json --draft
-# Display the overall explanation and record the actual confirmation and baseline.
+<qa-tool> validate-requirement-readiness <root>/.qa-state/design-context.json --clarification
+<qa-tool> render-clarification-workbook <root>/.qa-state/design-context.json
+<qa-tool> validate-clarification-workbook <root>/.qa-state/design-context.json
+# Deliver business explanation + clarification XLSX; record real confirmation/answers.
+<qa-tool> import-clarification-workbook <root>/.qa-state/design-context.json
+# Reconcile actual cell/chat replies, preserving unresolved local questions.
 <qa-tool> validate-requirement-readiness <root>/.qa-state/design-context.json --draft --confirmed
 # Derive the draft plan, then leaves and cases. Record the performed visible-tree review.
 <qa-tool> design-review-digest <root>/.qa-state/test-points.json
 <qa-tool> render-test-points-xmind <root>/.qa-state/test-points.json --draft
 <qa-tool> render-case-workbook <root>/.qa-state/test-manifest.json --draft
 <qa-tool> validate-case-workbook <root>/.qa-state/test-manifest.json --draft
+<qa-tool> render-clarification-workbook <root>/.qa-state/design-context.json --draft
 <qa-tool> validate-deliverables <root> --draft
-# Deliver four drafts and the question list together; apply actual batch answers.
+# Deliver four case drafts and the updated same clarification XLSX together.
+<qa-tool> import-clarification-workbook <root>/.qa-state/design-context.json
+# Apply actual batch answers and retain closed question history.
 # Import Excel edits before regeneration, then reconcile the pending candidate.
 <qa-tool> import-case-workbook <root>/.qa-state/test-manifest.json
 # Resolve pending facts using scoped amendments; refresh the requirement audit.
@@ -80,13 +92,14 @@ Local pending material questions and an unfrozen coverage plan are allowed for d
 <qa-tool> validate-test-manifest <root>/.qa-state/test-manifest.json
 <qa-tool> render-test-points-xmind <root>/.qa-state/test-points.json
 <qa-tool> render-case-workbook <root>/.qa-state/test-manifest.json
+<qa-tool> render-clarification-workbook <root>/.qa-state/design-context.json
 <qa-tool> validate-deliverables <root>
 ```
 
-Overall understanding confirmation precedes rendering. Deliver XMind and all three Excel drafts together using `--draft`; keep the four public filenames when refining and finalizing. Do not insert a separate XMind approval before cases. Use the final commands without `--draft` only after business questions are resolved and internal reviews are current.
+Overall understanding confirmation precedes case/XMind rendering, but follows the first independent clarification XLSX delivery. Deliver XMind and all three Excel drafts together using `--draft`; keep all five public filenames when refining and finalizing. Do not insert a separate XMind approval before cases. Use the final commands without `--draft` only after business questions are resolved and internal reviews are current.
 
 Hashes bind context → points → manifest → suite files → run. Reconcile changed business facts through actual scoped answers, retaining the initial confirmation. Refresh affected file bindings and agent reviews; do not obtain approvals merely to refresh hashes. An Excel edit becomes pending for import/review. Validators establish structural consistency, not semantic correctness, actual human authorship or exhaustive coverage.
 
 The execution handoff includes the entire reviewed artifact directory and its baselines. `candidate_route` describes the surface required by the case, not current execution readiness. Use `api` for an interface-defined acceptance target (`surface: api`); do not substitute it for a UI expectation. Executor discovers accounts, data, tools and environment access against the deployed target, without requiring product source.
 
-Later-source updates retain pre-update context, points and manifest in `.qa-state/history/<update-id>/`, after importing user edits. `source_updates.base_context_ref` points to that retained context. Carry the history with the private state during handoff so stopped coverage and amendments remain inspectable. Preserve the same four public design files. Deliver a concise change explanation with the existing shared question view; no additional public tracking file is required. See [source updates](source-updates.md) for document decisions, evidence-only changes and source branch reviews.
+Later-source updates retain pre-update context, points and manifest in `.qa-state/history/<update-id>/`, after importing user edits. `source_updates.base_context_ref` points to that retained context. Carry the history with the private state during handoff so stopped coverage and amendments remain inspectable. Preserve the four case-design files and the same independent clarification workbook. Deliver a concise change explanation and update that workbook; no second question inventory is required. See [source updates](source-updates.md) for document decisions, evidence-only changes and source branch reviews.

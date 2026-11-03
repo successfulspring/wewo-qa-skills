@@ -1,11 +1,15 @@
-"""Verify the tester's four-file delivery, not an engineering scratch folder."""
+"""Verify the independent clarification workbook and four case-design files."""
 import argparse
 from pathlib import Path
 from artifact_tools import ValidationFailure, validate_test_points_file
 from case_workbook import validate_case_workbooks
+from artifact_layout import CLARIFICATION_FILENAME
+from question_workbook import validate_workbook
+from validation_session import operation
 
+@operation
 def validate_delivery(root, *, draft=False):
-    expected = {"test-points.xmind", "test-cases.smoke.xlsx", "test-cases.regression.xlsx", "test-cases.full.xlsx"}
+    expected = {CLARIFICATION_FILENAME, "test-points.xmind", "test-cases.smoke.xlsx", "test-cases.regression.xlsx", "test-cases.full.xlsx"}
     allowed = expected | {".qa-state", "test-execution-report.xlsx", "test-report"}
     errors = []
     if not (root / ".qa-state").is_dir():
@@ -20,6 +24,7 @@ def validate_delivery(root, *, draft=False):
         raise ValidationFailure(errors)
     validate_test_points_file(root / ".qa-state" / "test-points.json", final=not draft)
     validate_case_workbooks(root / ".qa-state" / "test-manifest.json", draft=draft)
+    validate_workbook(root / '.qa-state' / 'design-context.json', draft=draft)
     # Confirm XMind is the actual rendered tree, not just a file with the right name.
     from artifact_tools import load_json
     import zipfile
@@ -38,10 +43,10 @@ def validate_delivery(root, *, draft=False):
         actual.close()
 
 def main():
-    parser = argparse.ArgumentParser(description="Check the clean XMind and three-Excel tester delivery.")
+    parser = argparse.ArgumentParser(description="Check clarification XLSX, XMind and three case workbooks together.")
     parser.add_argument("directory", type=Path)
-    parser.add_argument('--draft', action='store_true', help='Validate the four labeled draft files, not an execution baseline.')
+    parser.add_argument('--draft', action='store_true', help='Validate the five current draft deliverables, not an execution baseline.')
     args = parser.parse_args()
     validate_delivery(args.directory.resolve(), draft=args.draft)
-    print("OK: XMind and three Excel suite files; internal state is private")
+    print("OK: clarification workbook, XMind and three Excel suite files; internal state is private")
     return 0

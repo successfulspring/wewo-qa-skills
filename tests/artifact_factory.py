@@ -20,6 +20,24 @@ def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def compact_fixture_cases(points, manifest):
+    """Express the same synthetic fixture through the compact authoring input."""
+    import copy
+    from artifact_tools import walk_test_points
+    leaves = {n['id']: n for n in walk_test_points(points['tree']) if not n['children']}
+    cases = copy.deepcopy(manifest['cases'])
+    for case in cases:
+        bindings = {}
+        for assertion in case['assertions']:
+            point = leaves[assertion['test_point_refs'][0]]
+            assertion['point'] = point['outcome_ref']
+            bindings[assertion['id']] = point['outcome_ref']
+            assertion.pop('test_point_refs')
+        for step in case['steps']:
+            step['points'] = [bindings[a] for a in step.pop('assertion_refs')]
+    return cases
+
+
 def seal_synthetic_context(context):
     """Test-fixture metadata only; never use to manufacture real review/approval."""
     from design_context import requirement_digest

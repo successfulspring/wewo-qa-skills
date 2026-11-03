@@ -17,12 +17,33 @@ def output_language(artifact):
 # Chinese labels preserve existing workbook imports. They are presentation keys,
 # not business vocabulary or project-specific requirements.
 ENGLISH = {
+    '需求澄清':'Requirement Clarification', '澄清状态':'Clarification Status', '答复内容':'Reply',
+    '处理结论':'Resolution', '答复依据':'Reply Evidence', '阻塞整体确认':'Blocks Overall Confirmation',
+    '整体业务澄清':'Initial Business Clarification', '用例同步':'Case Synchronization',
+    '已解决':'Resolved', '已排除':'Excluded', '部分明确':'Partially Resolved',
+    '尚未生成用例；先确认上述业务影响。':'Cases have not been designed yet; clarify the business impact above first.',
+    '先阅读整体业务理解和全部问题，在黄色答复列集中填写，或按编号在聊天中答复。整体确认不等于确认未知规则。':
+        'Review the business understanding and all questions. Answer in the yellow Reply column or by question ID in chat. Overall confirmation does not approve unknown rules.',
+    '仅编辑答复内容，可排序；其余列由 Designer 更新。新问题或问题纠正在答复中说明，不删除历史行。':
+        'Edit only Reply cells; sorting is allowed. Designer maintains other columns. Mention new or corrected questions in your reply; retain historical rows.',
+    '答复回读后结合实际业务依据更新规则与用例；填写单元格不会自动确认业务、关闭问题或放行执行。':
+        'Replies are read back and reconciled against business evidence to update rules and cases. Editing a cell does not approve requirements, close questions or authorize execution.',
+    '同一问题沿用编号。未决项、部分答复和已解决结论持续保留；生成用例后补充关联用例。':
+        'Keep the same ID for the same decision. Retain unresolved questions, partial replies and resolutions. Add case links after design.',
+    '局部未决项允许生成带待确认预期的初稿；整体范围或主流程冲突需先澄清。':
+        'Local unknowns allow draft cases with pending expectations. Resolve overall scope or main-flow conflicts before design.',
+    '问题与答复统一维护在独立文件 requirement-clarifications.xlsx；此处仅显示待确认状态和关联问题编号。':
+        'Questions and replies are maintained in requirement-clarifications.xlsx; case workbooks show only pending status and question references.',
+    '当前没有待确认问题。':'There are no open questions.', '未记录':'Not recorded', '涉及用例':'Affected cases',
+    '尚未关联用例；请结合上述业务影响确认。':'No linked case yet; consider the business impact above.',
+    '请负责人提供上述具体规则；当前材料没有足够依据列出选项。':
+        'Please ask the owner to supply the specific rules above; the material does not establish supported options.',
+    '请按问题编号及子项集中答复。暂时无法确定的项可回复“待定”，相关预期继续保留待确认。':
+        'Reply by question ID and subquestion in one batch. Mark unresolved items as undecided; their expectations remain pending.',
     '待确认':'Pending confirmation', '已明确':'Specified', '正式版本':'Final', '设计状态':'Design Status',
     '关联问题':'Question References', '待确认问题':'Open Questions', '待确认内容':'Unresolved Rule', '可选处理方式':'Options', '疑问编号':'Question ID',
     '保留已有编号。业务答复统一更新规则、测试点和用例；无需分别确认 XMind 和 Excel。':
         'Keep existing IDs. Business answers update rules, points and cases together; no separate XMind or Excel approval is needed.',
-    '待确认问题汇总在全量文件。状态和问题关联由 Designer 更新；填写预期不会自动确认业务规则。':
-        'The full workbook lists open questions. Designer reconciles status and question links; entering an expectation does not confirm a business rule.',
     "测试用例":"Test Cases", "必检断言":"Required Assertions", "自动化评估":"Automation Assessment",
     "运行条件":"Runtime Requirements", "设计依据":"Design Basis", "设计复查":"Design Review", "使用说明":"Instructions",
     "用例编号":"Case ID", "模块路径":"Module Path", "用例名称":"Case Title", "优先级":"Priority", "风险":"Risk",

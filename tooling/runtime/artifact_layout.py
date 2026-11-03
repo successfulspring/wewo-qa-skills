@@ -2,6 +2,11 @@
 from pathlib import Path
 
 SUITES = ("smoke", "regression", "full")
+CLARIFICATION_FILENAME = "requirement-clarifications.xlsx"
+
+
+def clarification_workbook_path(context: Path) -> Path:
+    return artifact_root(context) / CLARIFICATION_FILENAME
 
 def artifact_root(baseline: Path) -> Path:
     parent = baseline.resolve().parent

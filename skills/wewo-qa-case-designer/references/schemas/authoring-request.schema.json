@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "base_sha256"],
+  "properties": {
+    "format": {"const": "wewo-qa-authoring/1"},
+    "base_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+    "project": {"type": "object"},
+    "upsert": {
+      "type": "object",
+      "propertyNames": {"enum": ["sources", "segments", "requirement_items", "objects", "relationships", "flows", "rules", "requirement_units", "open_questions", "closed_questions", "decisions", "source_updates"]},
+      "additionalProperties": {"type": "array", "items": {"type": "object", "required": ["id"]}}
+    },
+    "requirement_checks": {"type": "array", "items": {"type": "object", "required": ["kind", "unit_refs", "note"]}},
+    "design": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "project": {"type": "object"},
+        "stage": {"enum": ["draft", "final"]},
+        "case_defaults": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "preconditions": {"type": "array", "items": {"type": "string"}},
+            "applicable_targets": {"type": "array", "items": {"type": "string"}},
+            "automation": {"type": "array", "items": {"type": "object"}},
+            "runtime_requirement_refs": {"type": "array", "items": {"type": "string"}},
+            "safety": {"type": "object"}
+          }
+        },
+        "cases": {"type": "array", "items": {
+          "type": "object", "required": ["id", "assertions", "steps"],
+          "properties": {
+            "id": {"type": "string"},
+            "assertions": {"type": "array", "items": {"type": "object"}},
+            "steps": {"type": "array", "items": {"type": "object"}},
+            "applicable_targets": {"type": "array", "items": {"type": "string"}},
+            "automation": {"type": "array", "items": {"type": "object"}}
+          }
+        }},
+        "runtime_requirements": {"type": "array", "items": {"type": "object", "required": ["id"]}}
+      }
+    },
+    "review": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "context": {"type": "object"}, "points": {"type": "object"},
+        "cases": {"type": "array", "items": {"type": "object", "required": ["case_id", "walkthrough", "oracle_basis", "suite_reason"]}},
+        "manifest": {"type": "object"}
+      }
+    },
+    "archive_questions": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "amendments": {"type": "array", "items": {"type": "object", "required": ["ref"]}},
+    "branch_reviews": {"type": "array", "items": {"type": "object"}}
+  }
+}

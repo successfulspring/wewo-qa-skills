@@ -525,6 +525,27 @@
               "type": "string",
               "minLength": 1
             }
+          },
+          "responses": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "question_id",
+                "text"
+              ],
+              "properties": {
+                "question_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "required": [
@@ -778,6 +799,84 @@
           "changes"
         ]
       }
+    },
+    "closed_questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "material": {
+            "type": "boolean"
+          },
+          "unit_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "parent_decision_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "impact": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "blocking": {
+            "type": "boolean",
+            "description": "Whether the uncertainty prevents meaningful draft design."
+          },
+          "resolution_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "disposition": {
+            "enum": [
+              "resolved",
+              "excluded"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "material",
+          "unit_id",
+          "impact",
+          "resolution_refs",
+          "disposition"
+        ]
+      },
+      "uniqueItems": true
     }
   },
   "required": [

@@ -1,0 +1,16 @@
+[
+  {"id":"Q1.1","description":"Which identifier should a signed-in member see: nickname or account ID?","impact":"Determines the identity assertion after successful login.","options":["Display the member nickname.","Display the account ID."]},
+  {"id":"Q1.2","description":"If the chosen nickname is empty, which value should be displayed?","impact":"Determines the missing-nickname branch."},
+  {"id":"Q1.3","description":"For two members with the same nickname, should the displayed identity include a distinguishing value? If yes, which value?","impact":"Determines whether duplicate nicknames need additional visible identity information."},
+  {"id":"Q2.1","description":"1. Are leading and trailing nickname spaces preserved?\n2. Are spaces inside the nickname collapsed or preserved?","impact":"Determines the exact displayed nickname for whitespace inputs."},
+  {"id":"Q2.2","description":"Is the original letter case preserved in the displayed nickname?","impact":"Determines case-sensitive identity comparisons.","options":["Preserve the stored spelling, including letter case.","Use the approved display form.\nThe owner must supply its transformation rule."]},
+  {"id":"Q2.3","description":"1. What display length limit applies?\n2. Is it counted in characters, code points or another unit?\n3. If the name exceeds it, how is truncation shown?","impact":"Determines length-boundary and truncated-name assertions."},
+  {"id":"Q2.4","description":"Are emoji such as 🧪 displayed as part of the nickname or replaced?","impact":"Determines the expected Unicode identity text."},
+  {"id":"Q3.1","description":"After a member edits their nickname in another active session, when must this session show the new value?","impact":"Determines the observation time for cross-session identity updates."},
+  {"id":"Q3.2","description":"After signing out and signing in as another member, may the prior member's nickname appear briefly? If yes, for how long?","impact":"Determines the identity-switch observation and timing."},
+  {"id":"Q3.3","description":"After a connection interruption, should the last known nickname remain visible or should the identity area show a defined placeholder?","impact":"Determines the identity area's interrupted-connection state."},
+  {"id":"Q4.1","description":"Which member roles can see the full identity value, and which require a masked value?","impact":"Determines role-specific identity visibility."},
+  {"id":"Q4.2","description":"If masking applies, which characters stay visible and what replacement text is used?","impact":"Determines exact masked-identity assertions."},
+  {"id":"Q4.3","description":"When a member has nicknames in multiple languages, which value is selected for each display language?","impact":"Determines language-dependent identity selection."},
+  {"id":"Q4.4","description":"What should be displayed when a nickname is unavailable in the selected language?","impact":"Determines the missing-translation identity branch."}
+]

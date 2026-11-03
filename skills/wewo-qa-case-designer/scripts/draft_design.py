@@ -43,14 +43,14 @@ def pending_text(value, tr):
     return tr('待确认') + ': ' + ', '.join(sorted(question_refs(value)))
 
 
-def question_rows(context, manifest, points=None):
+def question_rows(context, manifest=None, points=None):
     """One question inventory; impacts are derived from references, never edited twice."""
     from artifact_tools import walk_test_points
     leaves = list(walk_test_points(points['tree'])) if points else []
     rows = []
     for q in context['open_questions']:
         qid = q['id']
-        cases = [c for c in manifest['cases'] if qid in question_refs(c)]
+        cases = [c for c in (manifest or {}).get('cases', []) if qid in question_refs(c)]
         point_ids = {p['id'] for p in leaves if qid in question_refs(p)}
         point_ids.update(p for c in cases for a in c['assertions'] if qid in question_refs(a) for p in a['test_point_refs'])
         rules = [r['id'] for r in context['rules'] if qid in question_refs(r)]

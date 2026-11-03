@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from jsonschema import Draft202012Validator, FormatChecker
+from validation_session import checked, current, operation, read_json
 
 
 if getattr(sys, "frozen", False):
@@ -50,7 +51,7 @@ def load_json(path: Path) -> Any:
     try:
         def reject_constant(value):
             raise ValueError("non-finite JSON constant: " + value)
-        return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_keys, parse_constant=reject_constant)
+        return read_json(path, lambda text: json.loads(text, object_pairs_hook=_reject_duplicate_keys, parse_constant=reject_constant))
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         raise ValidationFailure([f"{path}: cannot read valid UTF-8 JSON: {exc}"]) from exc
 
@@ -62,7 +63,15 @@ def load_schema(path: Path) -> dict[str, Any]:
 
 
 def schema_errors(instance: Any, schema_path: Path) -> list[str]:
-    validator = Draft202012Validator(load_schema(schema_path), format_checker=FormatChecker())
+    active = current()
+    key = sha256_file(schema_path) if active else None
+    if active and key in active.validators:
+        validator = active.validators[key]
+    else:
+        validator = Draft202012Validator(load_schema(schema_path), format_checker=FormatChecker())
+        if active:
+            active.validators[key] = validator
+            active.metrics['schema_compiles'] += 1
     errors: list[str] = []
     for error in sorted(validator.iter_errors(instance), key=lambda item: list(item.absolute_path)):
         location = ".".join(str(part) for part in error.absolute_path) or "$"
@@ -90,7 +99,10 @@ def walk_test_points(root: dict[str, Any]) -> Iterable[dict[str, Any]]:
         yield from walk_test_points(child)
 
 
-def validate_test_points_data(test_points: Any, context: dict[str, Any] | None = None, *, final: bool = True) -> None:
+@checked
+def validate_test_points_data(test_points: Any, context: dict[str, Any] | None = None, *, final: bool = True, _authoring: bool = False) -> None:
+    if _authoring and final:
+        raise ValidationFailure(['authoring preflight cannot validate a final baseline'])
     errors = schema_errors(test_points, TEST_POINTS_SCHEMA_PATH)
     if errors or not isinstance(test_points, dict):
         raise ValidationFailure(errors or ["$: test points must be an object"])
@@ -106,7 +118,8 @@ def validate_test_points_data(test_points: Any, context: dict[str, Any] | None =
     units = test_points["requirement_units"]
     nodes = list(walk_test_points(test_points["tree"]))
     from design_review import point_review_errors
-    errors.extend(point_review_errors(test_points, {n["id"] for n in nodes if not n["children"]}))
+    if not _authoring:
+        errors.extend(point_review_errors(test_points, {n["id"] for n in nodes if not n["children"]}))
 
     for label, values in (
         ("source", [item["id"] for item in sources]),
@@ -248,6 +261,7 @@ def validate_test_points_data(test_points: Any, context: dict[str, Any] | None =
         raise ValidationFailure(errors)
 
 
+@operation
 def validate_test_points_file(path: Path, *, final: bool = True) -> dict[str, Any]:
     test_points = load_json(path)
     validate_test_points_data(test_points, final=final)
@@ -260,7 +274,10 @@ def validate_test_points_file(path: Path, *, final: bool = True) -> dict[str, An
     return test_points
 
 
-def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = None, *, final: bool = True) -> None:
+@checked
+def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = None, *, final: bool = True, _authoring: bool = False) -> None:
+    if _authoring and final:
+        raise ValidationFailure(['authoring preflight cannot validate a final baseline'])
     errors = schema_errors(manifest, MANIFEST_SCHEMA_PATH)
     if errors or not isinstance(manifest, dict):
         raise ValidationFailure(errors or ["$: manifest must be an object"])
@@ -321,7 +338,7 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
     leaf_test_point_ids: set[str] = set()
     leaf_expectations: dict[str, str] = {}
     if test_points is not None:
-        validate_test_points_data(test_points, final=final)
+        validate_test_points_data(test_points, final=final, _authoring=_authoring)
         if is_draft(manifest) != is_draft(test_points):
             errors.append('manifest stage differs from test points')
         for key in ("name", "artifact_id", "requirement", "baseline"):
@@ -501,6 +518,7 @@ def validate_manifest_data(manifest: Any, test_points: dict[str, Any] | None = N
         raise ValidationFailure(errors)
 
 
+@operation
 def validate_manifest_file(path: Path, *, final: bool = True) -> dict[str, Any]:
     manifest = load_json(path)
     validate_manifest_data(manifest, final=final)
@@ -530,6 +548,10 @@ def validate_manifest_file(path: Path, *, final: bool = True) -> dict[str, Any]:
 
 
 def sha256_file(path: Path) -> str:
+    active = current()
+    if active:
+        active.read(path)
+        return active.files[Path(path).resolve()][1]
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
@@ -905,6 +927,8 @@ def write_text_atomic(path: Path, content: str) -> None:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
             stream.write(content)
         os.replace(temp_name, path)
+        if current():
+            current().invalidate(path)
     except Exception:
         try:
             os.unlink(temp_name)
@@ -920,6 +944,8 @@ def write_bytes_atomic(path: Path, content: bytes) -> None:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(content)
         os.replace(temp_name, path)
+        if current():
+            current().invalidate(path)
     except Exception:
         try:
             os.unlink(temp_name)

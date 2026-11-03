@@ -13,6 +13,7 @@ from artifact_tools import ValidationFailure, sha256_file, validate_results_file
 from case_workbook import render_case_workbooks, read_case_workbook, import_case_workbooks, validate_case_workbooks
 from design_context import validate_design_context_data
 from deliverables import validate_delivery
+from question_workbook import render_workbook
 from native_execution import execute, native_tests
 from render_execution_report import automatic_gate, render_report
 from render_test_points_xmind import render_xmind_bytes
@@ -27,11 +28,12 @@ class DeliveryTests(unittest.TestCase):
         self.context,self.points,self.manifest,self.path = artifact_set(self.root/".qa-state")
         # Fixture helper's private workbooks are not public deliverables.
         render_case_workbooks(self.path)
+        render_workbook(self.path.with_name('design-context.json'))
         (self.root/"test-points.xmind").write_bytes(render_xmind_bytes(self.points,"legacy"))
 
-    def test_four_public_files_have_their_own_exact_suite_rows(self):
+    def test_five_public_files_have_separate_questions_and_exact_suite_rows(self):
         validate_delivery(self.root)
-        self.assertEqual({p.name for p in self.root.iterdir()}, {".qa-state","test-points.xmind","test-cases.smoke.xlsx","test-cases.regression.xlsx","test-cases.full.xlsx"})
+        self.assertEqual({p.name for p in self.root.iterdir()}, {".qa-state","requirement-clarifications.xlsx","test-points.xmind","test-cases.smoke.xlsx","test-cases.regression.xlsx","test-cases.full.xlsx"})
         for suite in ("smoke","regression","full"):
             book=load_workbook(self.root/f"test-cases.{suite}.xlsx")
             try:

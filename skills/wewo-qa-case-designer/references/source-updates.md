@@ -48,6 +48,6 @@ Perform branch review for each source update using `source_update_ref`, affected
 
 ## Delivery
 
-Regenerate the same XMind and three Excel filenames after reconciling edits, facts, pending questions and reviews. Deliver the files together with the adopted materials, added/modified/retired cases and reasons, implementation gaps, and one grouped question list. Full Excel remains the durable visible question view. Store update mechanics and historical baselines privately; do not add a second public question or change-tracking workbook.
+Read clarification replies and case edits first. Regenerate the same XMind, three case Excel files and independent requirement-clarifications.xlsx after reconciling facts, questions and reviews. Deliver all five files with the adopted materials, added/modified/retired cases and reasons, implementation gaps and remaining/new questions. Update full question details, answers, resolved history and case links in the existing clarification workbook using the [workbook lifecycle](clarification-workbook.md). Store update mechanics and baselines privately; do not create another question inventory or restart overall confirmation solely for a document update.
 
 Finalization still requires resolved material expectations and current reviews. A development handoff is not proof of execution. Preserve UI/interface acceptance surfaces and hand only the reviewed final baseline to Executor.

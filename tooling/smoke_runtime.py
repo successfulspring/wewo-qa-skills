@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "tooling/runtime"), str(ROOT / "skills/wewo-qa-case-designer/scripts"), str(ROOT / "skills/wewo-qa-case-executor/scripts"), str(ROOT / "tests")]
-from artifact_factory import artifact_set, execution_set, write_json, mutate_observation, seal_synthetic_points, seal_synthetic_readiness
+from artifact_factory import artifact_set, execution_set, write_json, mutate_observation, seal_synthetic_points, seal_synthetic_readiness, compact_fixture_cases
 from artifact_tools import sha256_file
 from openpyxl import load_workbook
 from runtime_version import VERSION
@@ -60,19 +60,91 @@ def main():
         book.close()
     finally:
         fixture.doCleanups()
-    # Pending business expectations are reviewable in all four native draft
+    # Initial clarification exists before any confirmation, plan, points or cases.
+    from test_question_workbook import initial_context
+    with tempfile.TemporaryDirectory(prefix='wewo-qa-clarification-smoke-') as folder:
+        state = Path(folder) / '.qa-state'
+        state.mkdir()
+        context, context_path = initial_context(state)
+        context['open_questions'][0]['blocking'] = True
+        write_json(context_path, context)
+        run('validate-requirement-readiness', context_path, '--clarification')
+        run('render-clarification-workbook', context_path)
+        run('validate-clarification-workbook', context_path)
+        # New structured path records only explicit input and preserves this gate.
+        request_path = state / 'work' / 'request.json'
+        write_json(request_path, {'format': 'wewo-qa-authoring/1', 'base_sha256': sha256_file(context_path),
+            'upsert': {'open_questions': [{'id': '@smoke-local', 'unit_id': context['requirement_units'][0]['id'],
+                'description': 'Synthetic additional local rule', 'impact': 'Synthetic outcome needs an owner', 'material': True}]}})
+        authored = json.loads(run('apply-design', context_path, '--input', request_path))
+        if not authored['ids'].get('Q:@smoke-local'):
+            raise RuntimeError('native authoring did not allocate a stable question ID')
+        if json.loads(run('apply-design', context_path, '--input', request_path))['status'] != 'unchanged':
+            raise RuntimeError('native replay did not preserve the prior authored state')
+        run('inspect-design', context_path)
+        run('inspect-design', '--schema', 'coverage_item')
+        run('build-deliverables', state.parent, '--stage', 'clarification')
+        run('validate-requirement-readiness', context_path, '--draft', '--confirmed', fail=True)
+        output = state.parent / 'requirement-clarifications.xlsx'
+        book = load_workbook(output)
+        book['需求澄清']['J2'] = 'Synthetic owner reply: local detail remains undecided.'
+        book.save(output)
+        book.close()
+        packet = json.loads(run('import-clarification-workbook', context_path))
+        if packet['responses'] != [{'question_id':'Q2.1', 'text':'Synthetic owner reply: local detail remains undecided.'}]:
+            raise RuntimeError('native clarification answer import lost literal cell text')
+        run('render-clarification-workbook', context_path, fail=True)
+        if context_path.with_name('test-manifest.json').exists():
+            raise RuntimeError('initial clarification unexpectedly created cases')
+    # Pending business expectations are reviewable in all five native draft
     # outputs, but cannot be promoted to an execution profile by a draft flag.
     from test_designer_drafts import draft_set
+    with tempfile.TemporaryDirectory(prefix='wewo-qa-first-design-smoke-') as folder:
+        state = Path(folder) / '.qa-state'
+        state.mkdir()
+        context, points, manifest, _ = draft_set(state)
+        rule = next(r for r in context['rules'] if r['design_models'])
+        shared = copy.deepcopy(rule['design_models'][0])
+        shared['id'] += '-NATIVE'
+        for item in shared['items']: item['id'] += '-NATIVE'
+        rule['design_models'].append(shared)
+        write_json(state / 'design-context.json', context)
+        (state / 'test-points.json').unlink()
+        (state / 'test-manifest.json').unlink()
+        request = state / 'work' / 'first-design.json'
+        cases = compact_fixture_cases(points, manifest)
+        defaults = {'applicable_targets': cases[0]['applicable_targets']}
+        for case in cases:
+            if case['applicable_targets'] == defaults['applicable_targets']:
+                case.pop('applicable_targets')
+        write_json(request, {'format': 'wewo-qa-authoring/1',
+            'base_sha256': sha256_file(state / 'design-context.json'),
+            'design': {'project': points['project'], 'case_defaults': defaults, 'cases': cases,
+                       'runtime_requirements': manifest['runtime_requirements']}})
+        run('apply-design', state / 'design-context.json', '--input', request)
+        actual = json.loads((state / 'test-manifest.json').read_text(encoding='utf-8'))
+        if actual['review'] != {'status': 'pending'} or len(actual['cases']) != len(manifest['cases']):
+            raise RuntimeError('first native design did not preserve the pending-review case batch')
+        run('build-deliverables', state.parent, '--stage', 'draft', fail=True)
+        run('inspect-design', '--schema', 'design-context:open_questions')
+        run('inspect-design', '--schema', 'test-manifest:project')
+    from test_question_delivery import many_question_set
     with tempfile.TemporaryDirectory(prefix="wewo-qa-draft-smoke-") as folder:
         root = Path(folder)
         state = root / '.qa-state'
         state.mkdir()
-        _, _, _, path = draft_set(state)
+        context, _, _, path = many_question_set(state, language='zh-CN')
         run('requirement-digest', state / 'design-context.json', '--snapshot')
         run('validate-requirement-readiness', state / 'design-context.json', '--draft', '--confirmed')
         run('render-test-points-xmind', state / 'test-points.json', '--draft')
         run('render-case-workbook', path, '--draft')
+        run('render-clarification-workbook', state / 'design-context.json', '--draft')
         run('validate-deliverables', root, '--draft')
+        run('build-deliverables', root, '--stage', 'draft')
+        questions = run('render-open-questions', path, '--draft')
+        for question in context['open_questions']:
+            if question['description'] not in questions or question['impact'] not in questions:
+                raise RuntimeError('native question delivery lost a decision or impact: ' + question['id'])
         run('validate-deliverables', root, fail=True)
         run('prepare-execution-profile', path, '--suite', 'smoke', '--target', 'web-chrome',
             '--output', state / 'runs/blocked/execution-profile.json', fail=True)
@@ -93,6 +165,7 @@ def main():
         run('validate-requirement-readiness', state / 'design-context.json', '--confirmed')
         run('render-test-points-xmind', state / 'test-points.json')
         run('render-case-workbook', path)
+        run('render-clarification-workbook', state / 'design-context.json')
         run('validate-deliverables', state.parent)
         report = json.loads(run('summarize-source-update', state / 'design-context.json', '--update', 'UPD-001'))
         if report['case_changes']['modified'] != ['QA-LOGIN-001'] or report['open_questions']:

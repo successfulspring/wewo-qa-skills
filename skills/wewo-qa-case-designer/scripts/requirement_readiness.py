@@ -91,11 +91,28 @@ def dialogue_links(context):
 def dialogue_errors(context, *, ready=False, reviewed=False):
     """Check recorded evidence, not whether an answer is true or sufficient."""
     errors, asked, answered, latest_answers = dialogue_links(context)
+    for event in context['dialogue_events']:
+        responses = event.get('responses', [])
+        ids = [r['question_id'] for r in responses]
+        if responses and (event['kind'] not in {'answer', 'confirmation'} or
+                          len(ids) != len(set(ids)) or not set(ids) <= set(answered.get(event['id'], {}))):
+            errors.append(event['id'] + ': cell responses must uniquely match the addressed questions')
     units = {u["id"]: u for u in context["requirement_units"]}
     events = {e["id"]: e for e in context["dialogue_events"]}
     decisions = {d["id"]: d for d in context["decisions"]}
     rules = {r["id"]: r for r in context["rules"]}
     questions = {q["id"]: q for q in context["open_questions"]}
+    closed = context.get('closed_questions', [])
+    closed_ids = [q['id'] for q in closed]
+    if len(closed_ids) != len(set(closed_ids)) or set(closed_ids) & set(questions):
+        errors.append('closed questions must have unique IDs and cannot also remain open')
+    for q in closed:
+        if q['unit_id'] not in units:
+            errors.append(q['id'] + ': unknown closed question unit')
+        for ref in q['resolution_refs']:
+            decision = decisions.get(ref, {})
+            if decision.get('question_id') != q['id'] or decision.get('status') != 'confirmed':
+                errors.append(q['id'] + ': closing a question requires its confirmed resolution decision')
     sources = {s["id"] for s in context["sources"]}
     for key in ("requirement_units", "dialogue_events", "open_questions"):
         errors.extend("duplicate " + key + " id: " + i for i in _duplicates(x["id"] for x in context[key]))
@@ -123,7 +140,7 @@ def dialogue_errors(context, *, ready=False, reviewed=False):
         if decision.get('evidence_kind') == 'document':
             from source_updates import document_decision_errors
             errors.extend(document_decision_errors(context, decision))
-            recorded = qid in questions or any(
+            recorded = qid in questions or qid in closed_ids or any(
                 qid in change['question_refs'] and did in change['decision_refs']
                 for update in context.get('source_updates', []) for change in update['changes'])
             current = not qid or ((qid in asked or recorded) and
@@ -205,10 +222,12 @@ def dialogue_errors(context, *, ready=False, reviewed=False):
     return errors
 
 
-def readiness_errors(context, *, confirmed=False, final=True):
+def readiness_errors(context, *, confirmed=False, final=True, clarification=False):
     from design_context import requirement_digest
+    if clarification and (confirmed or final):
+        return ['clarification is a pre-confirmation view, not a design or finalization gate']
     errors = dialogue_errors(context, ready=final, reviewed=True)
-    if not final:
+    if not final and not clarification:
         errors.extend(q['id'] + ': blocking question prevents draft design' for q in context['open_questions'] if q.get('blocking'))
     for source in context["sources"]:
         if source["scope"] == "included" and source["inventory_status"] != "complete":
@@ -241,9 +260,10 @@ def main():
     parser.add_argument("context", type=Path)
     parser.add_argument("--confirmed", action="store_true", help="Also require actual overall confirmation and any scoped amendments.")
     parser.add_argument("--draft", action="store_true", help="Check overall understanding while localized business questions remain open.")
+    parser.add_argument('--clarification', action='store_true', help='Check complete reading for the initial clarification workbook; allows unresolved overall blockers.')
     args = parser.parse_args()
     context = validate_design_context_file(args.context, final=False)
-    errors = readiness_errors(context, confirmed=args.confirmed, final=not args.draft)
+    errors = readiness_errors(context, confirmed=args.confirmed, final=not (args.draft or args.clarification), clarification=args.clarification)
     if errors:
         raise ValidationFailure(errors)
     print("OK: requirement readiness" + (" and recorded confirmation" if args.confirmed else "; present the summary and obtain user confirmation"))

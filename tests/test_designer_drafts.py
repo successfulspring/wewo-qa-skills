@@ -12,6 +12,7 @@ from artifact_tools import ValidationFailure, load_json, sha256_file, validate_m
 from artifact_factory import write_json, seal_synthetic_points, seal_synthetic_readiness, seal_synthetic_cases
 from case_workbook import render_case_workbooks, read_case_workbook, import_case_workbooks
 from design_context import validate_design_context_data, requirement_digest
+from question_workbook import render_workbook
 
 
 def draft_set(directory, *, language=None):
@@ -80,7 +81,7 @@ class DesignerDraftTests(unittest.TestCase):
         validate_test_points_file(self.state / "test-points.json", final=False)
         validate_manifest_file(self.path, final=False)
 
-    def test_all_suite_drafts_roundtrip_and_full_view_shows_question_impact(self):
+    def test_suite_drafts_roundtrip_without_embedded_question_sheet(self):
         from openpyxl import load_workbook
         outputs = render_case_workbooks(self.path, draft=True)
         self.assertEqual(len(outputs), 3)
@@ -89,7 +90,10 @@ class DesignerDraftTests(unittest.TestCase):
             self.assertEqual(candidate, original)
         book = load_workbook(next(p for p in outputs if p.name.endswith("full.xlsx")))
         self.addCleanup(book.close)
-        rows = list(book["待确认问题"].values)
+        self.assertNotIn('待确认问题', book.sheetnames)
+        questions = load_workbook(render_workbook(self.state / 'design-context.json', draft=True))
+        self.addCleanup(questions.close)
+        rows = list(questions['需求澄清'].values)
         self.assertIn("Q2.1", str(rows))
         self.assertIn("QA-LOGIN-001", str(rows))
         self.assertIn("TP-LOGIN-NICKNAME", str(rows))
@@ -128,10 +132,11 @@ class DesignerDraftTests(unittest.TestCase):
         self.assertEqual(edited['assertions'][1]['status'], 'pending')
         self.assertNotIn('check', edited['assertions'][1])
 
-    def test_four_draft_files_validate_together_but_cannot_finalize(self):
+    def test_five_draft_files_validate_together_but_cannot_finalize(self):
         from render_test_points_xmind import render_xmind_bytes
         from deliverables import validate_delivery
         render_case_workbooks(self.path, draft=True)
+        render_workbook(self.state / 'design-context.json', draft=True)
         (self.state.parent / 'test-points.xmind').write_bytes(render_xmind_bytes(self.points, draft=True))
         validate_delivery(self.state.parent, draft=True)
         with self.assertRaises(ValidationFailure):
@@ -149,19 +154,19 @@ class DesignerDraftTests(unittest.TestCase):
         full = next(p for p in outputs if p.name.endswith('full.xlsx'))
         book = load_workbook(full)
         self.addCleanup(book.close)
-        self.assertIn('Open Questions', book.sheetnames)
+        self.assertNotIn('Open Questions', book.sheetnames)
         rows = list(book['Required Assertions'].values)
         pending = next(dict(zip(rows[0], r)) for r in rows[1:] if 'Q2.1' in str(r))
         self.assertEqual(pending['Design Status'], 'Pending confirmation')
         self.assertIsNone(pending['Comparison'])
         self.assertEqual(read_case_workbook(full)[0], read_case_workbook(full)[1])
 
-    def test_question_sheet_cannot_be_silently_edited_or_overwritten(self):
+    def test_question_sheet_cannot_be_silently_added_back_to_full_cases(self):
         from openpyxl import load_workbook
         outputs = render_case_workbooks(self.path, draft=True)
         full = next(p for p in outputs if p.name.endswith('full.xlsx'))
         book = load_workbook(full)
-        book['待确认问题'].cell(2, 3, 'Silently replace the business question')
+        book.create_sheet('待确认问题').cell(2, 3, 'Unexpected duplicate question inventory')
         book.save(full)
         book.close()
         with self.assertRaises(ValidationFailure):
@@ -176,6 +181,7 @@ class DesignerDraftTests(unittest.TestCase):
         from prepare_execution_profile import build_profile
         c, p, m = self.context, self.points, self.manifest
         outputs = render_case_workbooks(self.path, draft=True)
+        clarification_path = render_workbook(self.state / 'design-context.json', draft=True)
         original_confirmation = copy.deepcopy(c['requirement_confirmation'])
         original_ids = [(case['id'], case['test_point_refs']) for case in m['cases']]
         c['requirement_confirmation']['baseline'] = business_snapshot(c)
@@ -198,6 +204,7 @@ class DesignerDraftTests(unittest.TestCase):
         rule['requirement_refs'].append('REQ-DISPLAY')
         rule['design_models'][0]['items'][0]['requirement_refs'].append('REQ-DISPLAY')
         c['requirement_units'][0]['status'] = 'confirmed'
+        c['closed_questions'] = [dict(q, disposition='resolved', resolution_refs=['DEC-002']) for q in c['open_questions']]
         c['open_questions'] = []
         c['requirement_confirmation']['amendments'] = [{'ref':rule['id'], 'sha256':business_snapshot(c)[rule['id']], 'decision_refs':['DEC-002']}]
         c['requirement_review']['snapshot_sha256'] = requirement_digest(c)
@@ -230,6 +237,7 @@ class DesignerDraftTests(unittest.TestCase):
         seal_synthetic_cases(m)
         write_json(self.path, m)
         self.assertEqual(render_case_workbooks(self.path), outputs)
+        self.assertEqual(render_workbook(self.state / 'design-context.json'), clarification_path)
         (self.state.parent / 'test-points.xmind').write_bytes(render_xmind_bytes(p))
         validate_delivery(self.state.parent)
         self.assertEqual([(case['id'], case['test_point_refs']) for case in m['cases']], original_ids)

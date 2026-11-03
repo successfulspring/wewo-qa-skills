@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 import math
+import re
+import unicodedata
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -11,6 +13,59 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from artifact_tools import ValidationFailure
+
+BODY_FONT = Font(name="Calibri", size=11)
+HEADER_FONT = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+BODY_ALIGNMENT = Alignment(vertical="top", wrap_text=True)
+HEADER_ALIGNMENT = Alignment(wrap_text=True, vertical="center")
+HEADER_FILL = PatternFill('solid', fgColor='234E70')
+STRIPE_FILL = PatternFill('solid', fgColor='F2F6FA')
+
+
+def display_units(text):
+    return sum(0 if unicodedata.combining(c) else 2 if unicodedata.east_asian_width(c) in {'W', 'F'} else 1
+               for c in str(text))
+
+
+def wrapped_lines(value, width):
+    # Spreadsheet readers wrap at whitespace before splitting an overlong run.
+    # Counting total glyphs alone misses the short line left by e.g. "1. 中文…".
+    capacity = max(1, width - 2)
+    total = 0
+    for line in str(value if value is not None else '').split('\n'):
+        lines, used, gap = 1, 0, 0
+        for token in re.findall(r'\s+|\S+', line):
+            units = display_units(token)
+            if token.isspace():
+                gap = units if used else 0
+                continue
+            if used and used + gap + units > capacity:
+                lines += 1
+                used = 0
+            else:
+                used += gap
+            if units > capacity:
+                chunks = math.ceil(units / capacity)
+                lines += chunks - 1
+                used = units - (chunks - 1) * capacity
+            else:
+                used += units
+            gap = 0
+        total += lines
+    return total
+
+
+def layout_widths(headers, rows, widths):
+    result = {h: float((widths or {}).get(h, 24)) for h in headers}
+    for index, header in enumerate(headers):
+        base = result[header]
+        if base < 30:
+            continue
+        # Bound horizontal growth; widening cannot cure hundreds of explicit lines.
+        longest = max((wrapped_lines(row[index], base) for row in rows), default=1)
+        if longest > 15:
+            result[header] = min(max(base, 110), base * min(1.65, longest / 15))
+    return result
 
 
 def text_cell(cell: Any, value: Any) -> None:
@@ -26,15 +81,17 @@ def add_table(
     workbook: Workbook, name: str, headers: list[str], rows: Iterable[list[Any]],
     widths: dict[str, int] | None = None, choices: dict[str, list[str]] | None = None,
 ) -> Any:
+    rows = list(rows)
+    widths = layout_widths(headers, rows, widths)
     sheet = workbook.create_sheet(name)
     sheet.freeze_panes = "A2"
     sheet.sheet_view.showGridLines = False
     for index, header in enumerate(headers, 1):
         cell = sheet.cell(1, index)
         text_cell(cell, header)
-        cell.font = Font(name="Calibri", bold=True, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor="234E70")
-        cell.alignment = Alignment(wrap_text=True, vertical="center")
+        cell.font = HEADER_FONT
+        cell.fill = HEADER_FILL
+        cell.alignment = HEADER_ALIGNMENT
         sheet.column_dimensions[get_column_letter(index)].width = (widths or {}).get(header, 24)
     sheet.row_dimensions[1].height = 32
     for row_index, values in enumerate(rows, 2):
@@ -42,13 +99,19 @@ def add_table(
         for index, value in enumerate(values, 1):
             cell = sheet.cell(row_index, index)
             text_cell(cell, value)
-            cell.font = Font(name="Calibri", size=11)
-            cell.alignment = Alignment(vertical="top", wrap_text=True)
+            cell.font = BODY_FONT
+            cell.alignment = BODY_ALIGNMENT
             if row_index % 2 == 0:
-                cell.fill = PatternFill("solid", fgColor="F2F6FA")
+                cell.fill = STRIPE_FILL
             width = (widths or {}).get(headers[index - 1], 24)
-            max_lines = max(max_lines, sum(max(1, math.ceil(len(line) * 1.4 / width)) for line in str(value or "").split("\n")))
-        sheet.row_dimensions[row_index].height = min(409, max(30, max_lines * 16 + 8))
+            lines = wrapped_lines(value, width)
+            max_lines = max(max_lines, lines)
+            if lines * 16 + 10 > 409:
+                if not hasattr(workbook, '_qa_layout_warnings'):
+                    workbook._qa_layout_warnings = []
+                workbook._qa_layout_warnings.append({'sheet': name, 'cell': cell.coordinate,
+                    'estimated_lines': lines, 'reason': 'row-height-limit; complete text retained in cell'})
+        sheet.row_dimensions[row_index].height = min(409, max(30, max_lines * 16 + 10))
     sheet.auto_filter.ref = sheet.dimensions
     sheet.print_title_rows = "1:1"
     sheet.sheet_properties.pageSetUpPr.fitToPage = True
