@@ -12,6 +12,8 @@ The pre-confirmation `--clarification` route checks complete reading and audits 
 2. **Branch expansion**: inspect consequences of answers and shared rules across consumers, including unchanged surfaces. Record unanswered consequential branches with impact. Expand requirement-supported behavior, not hypothetical implementation internals.
 3. **Decision provenance**: read each rule's exact source, current real answer or applicable document approval. IDs alone do not prove semantic support. Resolve authority conflicts or disclose them in the question list. Recommendations, reported implementation and industry convention are not product oracles. A clear implementation gap keeps the confirmed requirement intact; only ambiguity about correct behavior makes an oracle pending.
 
+During these audits, use the operation-centered prompts in [test design](test-design.md#operation-centered-risk-discovery) to identify consequential missing rules while reading the source, before the first clarification workbook. Record concrete applicable questions with the operation, condition and impact; do not treat an entire generic checklist as a requirement or make speculative questions for unrelated capabilities. New questions discovered after confirmation go into the same workbook at the next draft delivery, without delaying known work or requiring another overall confirmation.
+
 Perform these before showing the overall explanation. Local unresolved findings remain visible and pending; they do not prevent a useful draft. An ambiguity preventing agreement on scope/main flow blocks that baseline. Before finalization resolve included material questions or obtain explicit exclusions, disclosing lost coverage.
 
 ## Private state contract

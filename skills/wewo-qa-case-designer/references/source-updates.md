@@ -32,6 +32,8 @@ Kinds are `corroboration`, `detail`, `addition`, `revision`, `retirement`, `conf
 
 Trace affected rules through requirement-unit dependencies, flows, related objects, points and assertions. The runtime's reference closure is a starting inventory; inspect business effects that the recorded graph may omit. Derive case changes by comparing retained and current manifests. Keep unchanged IDs, content and imported edits; global exports and internal reviews may still run over all artifacts.
 
+For each changed operation and affected consumer, repeat the applicable [operation-centered risk discovery](test-design.md#operation-centered-risk-discovery) against the updated source and existing business context, independently of old cases. Reassess failure, permissions, boundaries and interacting factors where the change can alter them; retain existing confirmed coverage and questions, add grounded variants or scoped pending questions, and do not infer new or removed rules from a document's silence.
+
 After validating the updated artifacts, run `<qa-tool> summarize-source-update <state>/design-context.json --update UPD-001` for the recorded changes, affected units/points/cases, actual added/modified/retired/unchanged case IDs and current questions. It reads the retained manifest beside `base_context_ref`. This read-only report does not approve decisions or replace delivery validation.
 
 ## Decisions and confirmation
