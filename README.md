@@ -1,6 +1,6 @@
 # Wewo QA Skills
 
-面向测试人员的 Codex / Claude Code 插件，当前版本 **0.3.3**，包含两个 Skill。
+面向测试人员的 Codex / Claude Code 插件，当前版本 **0.3.4**，包含两个 Skill。
 
 | Skill | 职责 |
 | --- | --- |
